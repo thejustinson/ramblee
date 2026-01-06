@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-dm-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-playfair-display: var(--font-playfair-display), ui-serif, Georgia, serif;
+}
+
+
+body {
+  font-family: var(--font-dm-sans), sans-serif;
+}
