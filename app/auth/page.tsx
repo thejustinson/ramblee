@@ -96,8 +96,8 @@ const Auth = () => {
 
   return (
     <div>
-      <div className="relative w-screen h-screen">
-        <div className="w-screen h-screen flex flex-col">
+      <div className="relative w-screen h-dvh">
+        <div className="w-screen h-dvh flex flex-col">
           <div className="w-full relative h-[60%]">
             {/* Skip button */}
             <button
