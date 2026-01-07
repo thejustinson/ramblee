@@ -42,7 +42,7 @@ const Auth = () => {
       ),
       description:
         "Learn for free. No need to pay for anything.",
-      buttonColor: "from-purple-400 to-purple-600", // Step 2 button color
+      buttonColor: "from-purple-300 to-purple-400", // Step 2 button color
       // Layer colors for Step 2
       layerColors: {
         bottom: "bg-purple-800",
@@ -61,12 +61,12 @@ const Auth = () => {
       ),
       description:
         "Connect with others, share your journey, and learn together.",
-      buttonColor: "from-pink-400 to-pink-600", // Step 3 button color
+      buttonColor: "from-green-300 to-green-400", // Step 3 button color
       // Layer colors for Step 3
       layerColors: {
-        bottom: "bg-pink-800",
-        middle: "bg-pink-600",
-        top: "bg-linear-to-br from-pink-300 to-pink-400",
+        bottom: "bg-green-800",
+        middle: "bg-green-600",
+        top: "bg-linear-to-br from-green-300 to-green-400",
       },
     },
   ];
