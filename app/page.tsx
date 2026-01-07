@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import Navigation from "@/components/Navigation";
 
 export default function Home() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -53,31 +54,16 @@ export default function Home() {
 
   return (
     <main className="relative min-h-screen bg-linear-to-br from-green-100 via-green-50 to-white overflow-hidden">
+      
+
       {/* Decorative elements */}
       <div className="absolute top-20 right-20 w-20 h-20 bg-purple-200 rounded-full opacity-40 blur-2xl" />
       <div className="absolute bottom-40 left-10 w-32 h-32 bg-blue-200 rounded-full opacity-30 blur-3xl" />
 
       {/* Main content container */}
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-12 sm:py-16 lg:py-20">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-12 sm:py-16 lg:py-20">
         {/* Navigation header */}
-        <header className="flex items-center justify-between mb-16 sm:mb-20">
-          <div className="text-xl sm:text-2xl font-bold text-[#002F6D] flex gap-2">
-            <Image
-              src="/logo.png"
-              alt="Ramblee Logo"
-              width={269.8}
-              height={236.1}
-              className="grow-0 shrink-0 h-[calc(236.1px/8)] w-[calc(269.8px/8)]"
-            />
-            <span>ramblee</span>
-          </div>
-          <button
-            onClick={handleInstallClick}
-            className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 font-semibold rounded-full hover:border-[#002F6D] hover:text-[#002F6D] transition-all duration-300"
-          >
-            Install Ramblee
-          </button>
-        </header>
+        <Navigation onInstallClick={handleInstallClick} />
 
         {/* Hero grid */}
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
@@ -115,7 +101,10 @@ export default function Home() {
                 </Link>
               )}
 
-              <Link href="/auth" className="px-8 py-4 bg-transparent text-gray-700 font-semibold rounded-full border-2 border-gray-300 transition-all duration-300 hover:bg-gray-50 hover:border-gray-400 hover:-translate-y-0.5 active:translate-y-0">
+              <Link
+                href="/auth"
+                className="px-8 py-4 bg-transparent text-gray-700 font-semibold rounded-full border-2 border-gray-300 transition-all duration-300 hover:bg-gray-50 hover:border-gray-400 hover:-translate-y-0.5 active:translate-y-0"
+              >
                 Login
               </Link>
             </div>
@@ -143,8 +132,8 @@ export default function Home() {
                 />
               </div>
 
-              {/* Card 2 - Purple */}
-              <div className="group relative overflow-hidden rounded-3xl bg-linear-to-br from-purple-300 to-purple-400 h-48 sm:h-56 lg:h-64 shadow-lg transform hover:scale-105 transition-transform duration-300 sm:mt-12">
+              {/* Card 2 - Purple (hidden on mobile/tablet, shown on lg+) */}
+              <div className="hidden lg:block group relative overflow-hidden rounded-3xl bg-linear-to-br from-purple-300 to-purple-400 h-48 sm:h-56 lg:h-64 shadow-lg transform hover:scale-105 transition-transform duration-300 sm:mt-12">
                 <Image
                   src="/boy-holding-phone.png"
                   alt="Boy holding phone"
@@ -153,8 +142,8 @@ export default function Home() {
                 />
               </div>
 
-              {/* Card 3 - Green/Orange blend */}
-              <div className="group relative overflow-hidden rounded-3xl bg-linear-to-br from-green-300 to-green-400 h-48 sm:h-56 lg:h-64 shadow-lg transform hover:scale-105 transition-transform duration-300 sm:col-span-2 mt-4">
+              {/* Card 3 - Green/Orange blend (hidden on mobile/tablet, shown on lg+) */}
+              <div className="hidden lg:block group relative overflow-hidden rounded-3xl bg-linear-to-br from-green-300 to-green-400 h-48 sm:h-56 lg:h-64 shadow-lg transform hover:scale-105 transition-transform duration-300 sm:col-span-2 mt-4">
                 <Image
                   src="/two-friends.png"
                   alt="Two friends"
