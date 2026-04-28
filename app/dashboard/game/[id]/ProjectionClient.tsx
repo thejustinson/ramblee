@@ -16,8 +16,11 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
   { initialGame: any; questions: any[]; initialLeaderboard: LeaderboardEntry[] }) {
   const [game, setGame] = useState(initialGame);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(initialLeaderboard);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  
   const supabase = createClient();
   const currentQuestion = game.current_question_index >= 0 ? questions[game.current_question_index] : null;
+  const timeLimit = game.time_per_question || 30;
 
   useEffect(() => {
     const ch = supabase.channel("proj_game")
@@ -26,6 +29,25 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [initialGame.id, supabase]);
+
+  // Sync countdown timer
+  useEffect(() => {
+    if (!game.question_started_at || game.status !== "active" || game.current_question_index === -1) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const updateTimer = () => {
+      const startedAt = new Date(game.question_started_at).getTime();
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const remaining = Math.max(0, timeLimit - elapsed);
+      setTimeLeft(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [game.question_started_at, game.status, game.current_question_index, timeLimit]);
 
   useEffect(() => {
     const ch = supabase.channel("proj_answers")
@@ -104,7 +126,7 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
           Question {game.current_question_index + 1} of {questions.length}
         </div>
         <h2 className="font-display text-2xl font-bold leading-snug mb-6">{currentQuestion?.text}</h2>
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-3 mb-8">
           {currentQuestion?.options.map((opt: any, idx: number) => (
             <div key={opt.label} className={`${OPTION_COLORS[idx]} rounded-[2px] p-3 flex items-center gap-3`}>
               <div className="w-7 h-7 flex items-center justify-center bg-white/20 rounded-[2px] font-mono font-bold text-sm shrink-0">{opt.label}</div>
@@ -112,6 +134,24 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
             </div>
           ))}
         </div>
+
+        {/* Next Question Timer */}
+        {timeLeft !== null && (
+          <div className="mt-auto pt-6 border-t border-brand-border">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-brand-muted text-xs uppercase tracking-widest">Auto-Advance</span>
+              <span className={`font-mono font-bold ${timeLeft <= 5 ? "text-red-500 animate-pulse" : "text-brand-lime"}`}>
+                Next question in {timeLeft}s
+              </span>
+            </div>
+            <div className="w-full h-1 bg-brand-black rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-1000 ease-linear ${timeLeft <= 5 ? "bg-red-500" : "bg-brand-lime"}`}
+                style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right: Leaderboard HERO (62%) */}

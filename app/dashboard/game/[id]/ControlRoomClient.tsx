@@ -57,6 +57,7 @@ export default function ControlRoomClient({
 
   // Auto-advance countdown — tied to question_started_at
   useEffect(() => {
+    const timeLimit = game.time_per_question || 30;
     if (!game.question_started_at || game.status !== "active") {
       setAutoTimeLeft(null);
       return;
@@ -64,7 +65,7 @@ export default function ControlRoomClient({
 
     const startedAt = new Date(game.question_started_at).getTime();
     const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-    const initial = Math.max(0, AUTO_ADVANCE_SECONDS - elapsed);
+    const initial = Math.max(0, timeLimit - elapsed);
     setAutoTimeLeft(initial);
 
     if (initial === 0) {
@@ -83,7 +84,7 @@ export default function ControlRoomClient({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game.question_started_at, game.status]);
+  }, [game.question_started_at, game.status, game.time_per_question]);
 
   // Participants subscription
   useEffect(() => {
@@ -114,7 +115,8 @@ export default function ControlRoomClient({
     setIsLaunching(false);
   };
 
-  const timerPercent = autoTimeLeft !== null ? (autoTimeLeft / AUTO_ADVANCE_SECONDS) * 100 : 0;
+  const timeLimit = game.time_per_question || 30;
+  const timerPercent = autoTimeLeft !== null ? (autoTimeLeft / timeLimit) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-brand-black flex flex-col text-brand-white">
