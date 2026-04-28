@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Play, Users, Loader2, ChevronRight, ExternalLink, Link2, Check } from "lucide-react";
+import { ArrowLeft, Play, Users, Loader2, ChevronRight, ExternalLink, Share2 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import ShareModal from "@/components/ShareModal";
 
 const AUTO_ADVANCE_SECONDS = 30;
 
@@ -22,7 +23,7 @@ export default function ControlRoomClient({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [autoTimeLeft, setAutoTimeLeft] = useState<number | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const supabase = createClient();
   const currentQuestionIndex = game.current_question_index ?? -1;
@@ -130,16 +131,11 @@ export default function ControlRoomClient({
             <span className="text-brand-muted text-sm">CODE:</span>
             <span className="text-brand-lime font-bold tracking-widest text-lg">{game.join_code}</span>
             <button
-              onClick={() => {
-                const url = `${window.location.origin}/join?code=${game.join_code}`;
-                navigator.clipboard.writeText(url);
-                setCopiedLink(true);
-                setTimeout(() => setCopiedLink(false), 2000);
-              }}
-              title="Copy shareable link"
-              className={`ml-2 transition-colors ${copiedLink ? "text-status-correct" : "text-brand-muted hover:text-brand-white"}`}
+              onClick={() => setShareOpen(true)}
+              title="Share game"
+              className="ml-2 text-brand-muted hover:text-brand-lime transition-colors"
             >
-              {copiedLink ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+              <Share2 className="w-4 h-4" />
             </button>
           </div>
           <Link href={`/dashboard/game/${initialGame.id}/projection`} target="_blank"
@@ -242,6 +238,15 @@ export default function ControlRoomClient({
           )}
         </div>
       </div>
+
+      <ShareModal
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        gameTitle={game.title}
+        joinCode={game.join_code}
+        questionCount={questions.length}
+        reward={initialGame.reward}
+      />
     </div>
   );
 }

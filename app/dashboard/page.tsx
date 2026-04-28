@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { Plus, History, Trophy } from "lucide-react";
 import Link from "next/link";
-import CopyLinkButton from "./CopyLinkButton";
+import ShareButton from "./ShareButton";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -101,7 +101,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-brand-border/50">
                   <div className="font-mono text-sm text-brand-muted">{game.mode}</div>
                   <div className="flex items-center gap-4">
-                    <CopyLinkButton joinCode={game.join_code} />
+                    <ShareButton gameTitle={game.title} joinCode={game.join_code} questionCount={game.question_count} reward={game.reward} />
                     <div className="font-mono text-sm font-bold tracking-widest text-brand-white">{game.join_code}</div>
                   </div>
                 </div>

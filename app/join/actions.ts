@@ -75,6 +75,7 @@ export async function joinGame(formData: FormData) {
   }
 
   // 5. Set/refresh cookie (ensures the player screen always has a valid ID)
+  if (!participantId) throw new Error("Failed to create participant.");
   cookieStore.set(`participant_${game.id}`, participantId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
