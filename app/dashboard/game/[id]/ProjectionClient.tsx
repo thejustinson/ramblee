@@ -54,7 +54,7 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
       <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center text-brand-white text-center p-8">
         <div className="font-mono text-brand-muted uppercase tracking-widest mb-10 text-lg">Get ready to play</div>
         <h1 className="font-display text-6xl md:text-8xl font-bold mb-6">{initialGame.title}</h1>
-        <p className="text-brand-muted text-2xl mb-16">Join at <strong className="text-brand-white">ramblee.app/join</strong></p>
+        <p className="text-brand-muted text-2xl mb-16">Join at <strong className="text-brand-white">ramblee.fun/join</strong></p>
         <div className="bg-brand-surface border-2 border-brand-lime rounded-[2px] px-16 py-10 inline-block">
           <div className="font-mono text-brand-muted text-lg uppercase tracking-widest mb-4">Room Code</div>
           <div className="font-display font-bold text-8xl tracking-[0.3em] text-brand-lime">{initialGame.join_code}</div>

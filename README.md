@@ -102,7 +102,7 @@ Groups compete as teams. Fastest team member to answer earns points for the team
 ### 4. Player Experience
 
 #### Joining
-- Visit link or enter room code at `ramblee.app/join`
+- Visit link or enter room code at `ramblee.fun/join`
 - Enter display name (or use profile if logged in)
 - Waiting room with live participant count and ambient animation
 

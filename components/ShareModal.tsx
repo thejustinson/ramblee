@@ -127,7 +127,7 @@ export default function ShareModal({ isOpen, onClose, gameTitle, joinCode, quest
     ctx.font = "500 24px sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.textAlign = "center";
-    ctx.fillText("Join at ramblee.app/join", w / 2, h - 60);
+    ctx.fillText("Join at ramblee.fun/join", w / 2, h - 60);
 
     // Bottom accent line
     ctx.fillStyle = "#C8FF00";
@@ -214,9 +214,8 @@ export default function ShareModal({ isOpen, onClose, gameTitle, joinCode, quest
               className="flex-1 bg-transparent text-brand-white font-mono text-sm outline-none truncate"
             />
             <button onClick={handleCopyLink}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] text-sm font-medium transition-colors ${
-                copiedLink ? "bg-status-correct/20 text-status-correct" : "bg-brand-surface text-brand-muted hover:text-brand-white"
-              }`}>
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] text-sm font-medium transition-colors ${copiedLink ? "bg-status-correct/20 text-status-correct" : "bg-brand-surface text-brand-muted hover:text-brand-white"
+                }`}>
               {copiedLink ? <><Check className="w-4 h-4" />Copied</> : <><Link2 className="w-4 h-4" />Copy</>}
             </button>
           </div>

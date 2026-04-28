@@ -100,7 +100,7 @@ export default function PlayerGameClient({
     if (gameState !== "question" || selectedAnswer) return;
 
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
+      setTimeLeft((prev: number) => {
         if (prev <= 1) {
           clearInterval(interval);
           setGameState("answered");
