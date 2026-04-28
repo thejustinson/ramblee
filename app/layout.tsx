@@ -1,33 +1,15 @@
 import type { Metadata } from "next";
-import { DM_Sans, Playfair_Display } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const playfairDisplay = Playfair_Display({
-  variable: "--font-playfair-display",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Ramblee",
-  description: "Ramblee Progressive Web App",
-  manifest: "/manifest.json",
-  themeColor: "#002F6D",
-  icons: {
-    icon: "/icon.png",
-    apple: "/icon-192.png",
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Ramblee",
-  },
+  title: "Ramblee | The fastest mind wins.",
+  description: "Real-time, multiplayer quiz platform designed for group play.",
 };
 
 export default function RootLayout({
@@ -36,30 +18,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head></head>
-      <body
-        className={`${dmSans.variable} ${playfairDisplay.variable} antialiased`}
-      >
-        {children}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(
-                    function(registration) {
-                      console.log('Service Worker registered with scope:', registration.scope);
-                    },
-                    function(err) {
-                      console.log('Service Worker registration failed:', err);
-                    }
-                  );
-                });
-              }
-            `,
-          }}
+    <html lang="en" className={`${jetbrainsMono.variable} h-full antialiased`}>
+      <head>
+        <link
+          href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=dm-sans@400,500,700&display=swap"
+          rel="stylesheet"
         />
+      </head>
+      <body className="min-h-full flex flex-col bg-brand-black text-brand-white font-body selection:bg-brand-lime selection:text-brand-black">
+        {children}
       </body>
     </html>
   );
