@@ -5,9 +5,12 @@ import { ArrowLeft, Sparkles, AlertCircle, FileText, PenLine, Upload, X } from "
 import Link from "next/link";
 import { createGame } from "./actions";
 
+import { useRouter } from "next/navigation";
+
 export default function CreateGamePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [gameMode, setGameMode] = useState("Mode B");
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [generationMode, setGenerationMode] = useState<"from_text" | "guided">("from_text");
@@ -16,6 +19,7 @@ export default function CreateGamePage() {
   const [difficultyLevel, setDifficultyLevel] = useState("mixed");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -26,6 +30,7 @@ export default function CreateGamePage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const formData = new FormData(e.currentTarget);
       formData.set("game_mode", gameMode);
@@ -35,7 +40,16 @@ export default function CreateGamePage() {
       formData.set("difficulty_level", difficultyLevel);
       formData.set("input_mode", inputMode);
       if (uploadedFile) formData.set("document", uploadedFile);
-      await createGame(formData);
+      
+      const result = await createGame(formData);
+      
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
+      } else if (result?.url) {
+        setSuccess("Game created successfully! Redirecting...");
+        router.push(result.url);
+      }
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
       setLoading(false);
@@ -54,6 +68,13 @@ export default function CreateGamePage() {
         {error && (
           <div className="mb-8 p-4 bg-status-wrong/10 border border-status-wrong rounded-[2px] flex items-start gap-3 text-status-wrong text-sm">
             <AlertCircle className="w-5 h-5 shrink-0" /><p>{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-8 p-4 bg-brand-lime/10 border border-brand-lime rounded-[2px] flex items-start gap-3 text-brand-lime text-sm">
+            <div className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full border border-brand-lime"><span className="text-xs">✓</span></div>
+            <p>{success}</p>
           </div>
         )}
 

@@ -24,6 +24,7 @@ export default function ControlRoomClient({
   const [answeredCount, setAnsweredCount] = useState(0);
   const [autoTimeLeft, setAutoTimeLeft] = useState<number | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [localQuestionStartedAt, setLocalQuestionStartedAt] = useState<number | null>(null);
 
   const supabase = createClient();
   const currentQuestionIndex = game.current_question_index ?? -1;
@@ -38,11 +39,33 @@ export default function ControlRoomClient({
     const nextIndex = currentQuestionIndex + 1;
     const { data } = await supabase
       .from("games")
-      .update({ current_question_index: nextIndex, question_started_at: new Date().toISOString() })
+      .update({ 
+        current_question_index: nextIndex, 
+        question_started_at: new Date().toISOString(),
+        is_revealing: false,
+        reveal_answer: null
+      })
       .eq("id", initialGame.id)
       .select().single();
     if (data) setGame(data);
     setIsAdvancing(false);
+  };
+
+  const handleReveal = async () => {
+    if (game.is_revealing || isAdvancing) return;
+    setIsAdvancing(true);
+    try {
+      await fetch("/api/game/reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameId: initialGame.id }),
+      });
+      // The game state will update via the postgres_changes subscription
+    } catch (err) {
+      console.error("Failed to reveal:", err);
+    } finally {
+      setIsAdvancing(false);
+    }
   };
 
   const handleEndGame = async () => {
@@ -52,39 +75,70 @@ export default function ControlRoomClient({
 
   // Always keep advanceRef current
   useEffect(() => {
-    advanceRef.current = isLastQuestion ? handleEndGame : handleNextQuestion;
-  });
+    advanceRef.current = currentQuestionIndex === -1 ? handleNextQuestion : handleReveal;
+  }, [currentQuestionIndex]);
 
-  // Auto-advance countdown — tied to question_started_at
+  // Record local start time when question changes to avoid server/client clock desync
+  useEffect(() => {
+    if (game.status === "active" && currentQuestionIndex >= 0 && !game.is_revealing) {
+      setLocalQuestionStartedAt(Date.now());
+    } else {
+      setLocalQuestionStartedAt(null);
+    }
+  }, [currentQuestionIndex, game.status, game.is_revealing]);
+
+  // Auto-advance countdown
   useEffect(() => {
     const timeLimit = game.time_per_question || 30;
-    if (!game.question_started_at || game.status !== "active") {
+    if (!localQuestionStartedAt || game.status !== "active") {
       setAutoTimeLeft(null);
       return;
     }
 
-    const startedAt = new Date(game.question_started_at).getTime();
-    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-    const initial = Math.max(0, timeLimit - elapsed);
-    setAutoTimeLeft(initial);
-
-    if (initial === 0) {
-      advanceRef.current();
-      return;
-    }
-
-    let remaining = initial;
-    const interval = setInterval(() => {
-      remaining -= 1;
+    let isCleared = false;
+    let interval: NodeJS.Timeout;
+    
+    const updateTimer = () => {
+      if (isCleared) return;
+      const now = Date.now();
+      const elapsed = Math.floor((now - localQuestionStartedAt) / 1000);
+      const remaining = Math.max(0, timeLimit - elapsed);
       setAutoTimeLeft(remaining);
-      if (remaining <= 0) {
-        clearInterval(interval);
-        advanceRef.current();
-      }
-    }, 1000);
 
-    return () => clearInterval(interval);
-  }, [game.question_started_at, game.status, game.time_per_question]);
+      if (remaining <= 0) {
+        if (interval) clearInterval(interval);
+        isCleared = true;
+        if (!game.is_revealing) {
+          advanceRef.current();
+        }
+      }
+    };
+
+    updateTimer(); // Initial check
+    interval = setInterval(updateTimer, 200); // Check frequently to prevent drift
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        updateTimer();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isCleared = true;
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [localQuestionStartedAt, game.status, game.time_per_question, game.is_revealing]);
+
+  // Sync game state from DB updates (important for the reveal transition)
+  useEffect(() => {
+    const ch = supabase.channel("ctrl_game_sync")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${initialGame.id}` },
+        (payload) => setGame(payload.new as any))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [initialGame.id, supabase]);
 
   // Participants subscription
   useEffect(() => {
@@ -185,18 +239,29 @@ export default function ControlRoomClient({
               )}
 
               <div className="flex gap-3 flex-wrap">
-                {!isLastQuestion ? (
+                {currentQuestionIndex === -1 ? (
                   <button onClick={handleNextQuestion} disabled={isAdvancing}
                     className="px-6 py-3 bg-brand-lime text-brand-black font-semibold rounded-[2px] hover:brightness-110 flex items-center gap-2 disabled:opacity-50">
+                    {isAdvancing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                    Start First Question
+                  </button>
+                ) : !game.is_revealing ? (
+                  <button onClick={handleReveal} disabled={isAdvancing}
+                    className="px-6 py-3 bg-brand-lime text-brand-black font-semibold rounded-[2px] hover:brightness-110 flex items-center gap-2 disabled:opacity-50">
                     {isAdvancing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-                    {currentQuestionIndex === -1 ? "Start First Question" : "Next Question"}
+                    Reveal Answer
                   </button>
                 ) : (
-                  currentQuestionIndex >= 0 && (
-                    <button onClick={handleEndGame} className="px-6 py-3 border border-status-wrong text-status-wrong font-semibold rounded-[2px] hover:bg-status-wrong/10 transition-all">
-                      End Game
-                    </button>
-                  )
+                  <div className="px-6 py-3 bg-brand-surface border border-brand-border text-brand-muted font-mono uppercase tracking-widest text-sm flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Revealing...
+                  </div>
+                )}
+                
+                {game.status === "active" && currentQuestionIndex >= 0 && (
+                  <button onClick={handleEndGame} className="px-6 py-3 border border-status-wrong/50 text-status-wrong hover:bg-status-wrong/10 font-semibold rounded-[2px] transition-all text-sm">
+                    End Game Early
+                  </button>
                 )}
               </div>
             </div>

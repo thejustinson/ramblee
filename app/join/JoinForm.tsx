@@ -5,17 +5,30 @@ import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { joinGame } from "./actions";
 
+import { useRouter } from "next/navigation";
+
 export default function JoinForm({ initialCode = "" }: { initialCode?: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const formData = new FormData(e.currentTarget);
-      await joinGame(formData);
+      const result = await joinGame(formData);
+      
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
+      } else if (result?.url) {
+        setSuccess("Successfully joined room! Redirecting...");
+        router.push(result.url);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to join room.");
       setLoading(false);
@@ -37,6 +50,13 @@ export default function JoinForm({ initialCode = "" }: { initialCode?: string })
         {error && (
           <div className="mb-6 p-4 bg-status-wrong/10 border border-status-wrong rounded-[2px] flex items-start gap-3 text-status-wrong text-sm">
             <AlertCircle className="w-5 h-5 shrink-0" /><p>{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 p-4 bg-brand-lime/10 border border-brand-lime rounded-[2px] flex items-start gap-3 text-brand-lime text-sm">
+            <div className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full border border-brand-lime"><span className="text-xs">✓</span></div>
+            <p>{success}</p>
           </div>
         )}
 

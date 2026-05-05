@@ -54,9 +54,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      is_correct: isCorrect,
-      points_earned: pointsEarned,
-      correct_answer: question.correct_answer,
+      success: true,
+      message: "Answer submitted successfully"
     });
   } catch (err) {
     console.error("submitAnswer error:", err);

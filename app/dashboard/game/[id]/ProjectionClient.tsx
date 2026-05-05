@@ -17,6 +17,7 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
   const [game, setGame] = useState(initialGame);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(initialLeaderboard);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [localQuestionStartedAt, setLocalQuestionStartedAt] = useState<number | null>(null);
   
   const supabase = createClient();
   const currentQuestion = game.current_question_index >= 0 ? questions[game.current_question_index] : null;
@@ -30,24 +31,33 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
     return () => { supabase.removeChannel(ch); };
   }, [initialGame.id, supabase]);
 
+  // Record local start time
+  useEffect(() => {
+    if (game.status === "active" && game.current_question_index >= 0 && !game.is_revealing) {
+      setLocalQuestionStartedAt(Date.now());
+    } else {
+      setLocalQuestionStartedAt(null);
+    }
+  }, [game.current_question_index, game.status, game.is_revealing]);
+
   // Sync countdown timer
   useEffect(() => {
-    if (!game.question_started_at || game.status !== "active" || game.current_question_index === -1) {
+    if (!localQuestionStartedAt || game.status !== "active" || game.current_question_index === -1) {
       setTimeLeft(null);
       return;
     }
 
     const updateTimer = () => {
-      const startedAt = new Date(game.question_started_at).getTime();
-      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const now = Date.now();
+      const elapsed = Math.floor((now - localQuestionStartedAt) / 1000);
       const remaining = Math.max(0, timeLimit - elapsed);
       setTimeLeft(remaining);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 1000);
+    const interval = setInterval(updateTimer, 200);
     return () => clearInterval(interval);
-  }, [game.question_started_at, game.status, game.current_question_index, timeLimit]);
+  }, [localQuestionStartedAt, game.status, game.current_question_index, timeLimit]);
 
   useEffect(() => {
     const ch = supabase.channel("proj_answers")
@@ -127,21 +137,28 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
         </div>
         <h2 className="font-display text-2xl font-bold leading-snug mb-6">{currentQuestion?.text}</h2>
         <div className="grid grid-cols-1 gap-3 mb-8">
-          {currentQuestion?.options.map((opt: any, idx: number) => (
-            <div key={opt.label} className={`${OPTION_COLORS[idx]} rounded-[2px] p-3 flex items-center gap-3`}>
-              <div className="w-7 h-7 flex items-center justify-center bg-white/20 rounded-[2px] font-mono font-bold text-sm shrink-0">{opt.label}</div>
-              <span className="font-medium text-white text-sm leading-tight">{opt.text}</span>
-            </div>
-          ))}
+          {currentQuestion?.options.map((opt: any, idx: number) => {
+            const isCorrect = game.is_revealing && opt.label === game.reveal_answer;
+            return (
+              <div key={opt.label} className={`
+                ${OPTION_COLORS[idx]} rounded-[2px] p-3 flex items-center gap-3 transition-all duration-500
+                ${game.is_revealing && !isCorrect ? "opacity-30 grayscale" : "opacity-100"}
+                ${isCorrect ? "ring-4 ring-white ring-inset scale-[1.02] shadow-[0_0_30px_rgba(255,255,255,0.4)]" : ""}
+              `}>
+                <div className="w-7 h-7 flex items-center justify-center bg-white/20 rounded-[2px] font-mono font-bold text-sm shrink-0">{opt.label}</div>
+                <span className="font-medium text-white text-sm leading-tight">{opt.text}</span>
+              </div>
+            );
+          })}
         </div>
 
         {/* Next Question Timer */}
-        {timeLeft !== null && (
+        {!game.is_revealing && timeLeft !== null && (
           <div className="mt-auto pt-6 border-t border-brand-border">
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-brand-muted text-xs uppercase tracking-widest">Auto-Advance</span>
               <span className={`font-mono font-bold ${timeLeft <= 5 ? "text-red-500 animate-pulse" : "text-brand-lime"}`}>
-                Next question in {timeLeft}s
+                Time Remaining: {timeLeft}s
               </span>
             </div>
             <div className="w-full h-1 bg-brand-black rounded-full overflow-hidden">
@@ -149,6 +166,14 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
                 className={`h-full transition-all duration-1000 ease-linear ${timeLeft <= 5 ? "bg-red-500" : "bg-brand-lime"}`}
                 style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
               />
+            </div>
+          </div>
+        )}
+
+        {game.is_revealing && (
+          <div className="mt-auto pt-6 border-t border-brand-border animate-pulse">
+            <div className="text-brand-lime font-mono text-sm uppercase tracking-widest text-center">
+              Answer Revealed — Next Question Soon
             </div>
           </div>
         )}
@@ -182,6 +207,28 @@ export default function ProjectionClient({ initialGame, questions, initialLeader
           </div>
         )}
       </div>
+
+      {/* Revelation Overlay */}
+      {game.is_revealing && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-brand-black/40 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+          <div className="bg-brand-surface border-4 border-brand-lime p-16 rounded-[2px] shadow-[0_0_100px_rgba(200,255,0,0.2)] text-center max-w-4xl w-full mx-8">
+            <div className="font-mono text-brand-lime text-2xl uppercase tracking-[0.5em] mb-8">Correct Answer</div>
+            <div className="flex items-center justify-center gap-12 mb-12">
+              <div className="w-48 h-48 rounded-full bg-brand-lime flex items-center justify-center shadow-[0_0_50px_rgba(200,255,0,0.4)] animate-bounce">
+                <span className="font-display text-9xl font-bold text-brand-black">{game.reveal_answer}</span>
+              </div>
+              <div className="text-left">
+                <div className="font-display text-6xl font-bold leading-tight max-w-xl">
+                  {currentQuestion?.options.find((o: any) => o.label === game.reveal_answer)?.text}
+                </div>
+              </div>
+            </div>
+            <div className="h-2 w-full bg-brand-black rounded-full overflow-hidden">
+              <div className="h-full bg-brand-lime animate-progress-full" style={{ animationDuration: '2000ms' }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

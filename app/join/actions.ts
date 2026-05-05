@@ -8,7 +8,7 @@ export async function joinGame(formData: FormData) {
   const joinCode = formData.get('joinCode') as string;
   const displayName = formData.get('displayName') as string;
 
-  if (!joinCode || !displayName) throw new Error("Room code and display name are required.");
+  if (!joinCode || !displayName) return { error: "Room code and display name are required." };
 
   const supabase = await createClient();
   const codeUpper = joinCode.toUpperCase().trim();
@@ -20,8 +20,8 @@ export async function joinGame(formData: FormData) {
     .eq('join_code', codeUpper)
     .single();
 
-  if (gameError || !game) throw new Error("Room not found. Check the code and try again.");
-  if (game.status === 'finished') throw new Error("This game has already finished.");
+  if (gameError || !game) return { error: "Room not found. Check the code and try again." };
+  if (game.status === 'finished') return { error: "This game has already finished." };
 
   // 2. Check auth state
   const { data: { user } } = await supabase.auth.getUser();
@@ -66,16 +66,16 @@ export async function joinGame(formData: FormData) {
 
     if (partError) {
       console.error("Participant Insert Error:", partError);
-      if (partError.code === '42P01') throw new Error("The 'participants' table does not exist. Did you run the SQL script?");
-      if (partError.code === '23505') throw new Error("You are already registered in this game.");
-      throw new Error("Failed to join the room.");
+      if (partError.code === '42P01') return { error: "The 'participants' table does not exist. Did you run the SQL script?" };
+      if (partError.code === '23505') return { error: "You are already registered in this game." };
+      return { error: "Failed to join the room." };
     }
 
     participantId = participant.id;
   }
 
   // 5. Set/refresh cookie (ensures the player screen always has a valid ID)
-  if (!participantId) throw new Error("Failed to create participant.");
+  if (!participantId) return { error: "Failed to create participant." };
   cookieStore.set(`participant_${game.id}`, participantId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -83,6 +83,6 @@ export async function joinGame(formData: FormData) {
     maxAge: 60 * 60 * 24 // 24 hours
   });
 
-  // 6. Redirect to waiting room
-  redirect(`/play/${game.id}`);
+  // 6. Return success with redirect URL
+  return { success: true, url: `/play/${game.id}` };
 }

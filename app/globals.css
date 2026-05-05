@@ -59,3 +59,12 @@ body {
 .quiz-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-brand-lime);
 }
+
+@keyframes progress-full {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.animate-progress-full {
+  animation: progress-full linear forwards;
+}

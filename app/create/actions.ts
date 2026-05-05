@@ -7,9 +7,8 @@ import { redirect } from 'next/navigation';
 export async function createGame(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY.");
+  if (!user) return { error: "Not authenticated" };
+  if (!process.env.GEMINI_API_KEY) return { error: "Missing GEMINI_API_KEY." };
 
   const title = formData.get('title') as string;
   const gameMode = formData.get('game_mode') as string;
@@ -100,10 +99,10 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
     questions = JSON.parse(response.text || "[]");
   } catch (err: any) {
     console.error("AI Generation Error:", err);
-    throw new Error("Failed to generate questions with AI. Please try again.");
+    return { error: "Failed to generate questions with AI. Please try again." };
   }
 
-  if (!questions || questions.length === 0) throw new Error("AI returned no questions.");
+  if (!questions || questions.length === 0) return { error: "AI returned no questions." };
 
   // Create Game in Supabase
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -122,7 +121,7 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
 
   if (gameError) {
     console.error("Game Insert Error:", gameError);
-    throw new Error("Database error while creating game.");
+    return { error: "Database error while creating game." };
   }
 
   // Insert Questions
@@ -136,7 +135,7 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
   }));
 
   const { error: qError } = await supabase.from('questions').insert(formattedQuestions);
-  if (qError) throw new Error("Database error while saving questions.");
+  if (qError) return { error: "Database error while saving questions." };
 
-  redirect(`/dashboard/game/${game.id}`);
+  return { success: true, url: `/dashboard/game/${game.id}` };
 }

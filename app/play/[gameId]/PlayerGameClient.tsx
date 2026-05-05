@@ -15,9 +15,8 @@ const ANSWER_COLORS = [
 type GameState = "waiting" | "question" | "answered" | "finished";
 
 interface AnswerResult {
-  is_correct: boolean;
-  points_earned: number;
-  correct_answer: string;
+  success: boolean;
+  message?: string;
 }
 
 export default function PlayerGameClient({
@@ -49,10 +48,10 @@ export default function PlayerGameClient({
 
   const [gameState, setGameState] = useState<GameState>(getInitialState);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalPoints, setTotalPoints] = useState(initialTotalPoints);
+  const [localQuestionStartedAt, setLocalQuestionStartedAt] = useState<number | null>(null);
 
   const supabase = createClient();
 
@@ -61,7 +60,6 @@ export default function PlayerGameClient({
   // Reset per-question state when question changes
   const resetForNewQuestion = useCallback(() => {
     setSelectedAnswer(null);
-    setAnswerResult(null);
     setTimeLeft(TIME_LIMIT);
     setIsSubmitting(false);
   }, []);
@@ -75,19 +73,24 @@ export default function PlayerGameClient({
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${initialGame.id}` },
         (payload: any) => {
           const updated = payload.new;
-          setGame((prev: any) => ({ ...prev, ...updated }));
+          setGame((prev: any) => {
+            const isNewQuestion = prev.current_question_index !== updated.current_question_index;
+            
+            setTimeout(() => {
+              if (updated.status === "finished") {
+                setGameState("finished");
+              } else if (updated.status === "active" && updated.current_question_index >= 0) {
+                if (isNewQuestion) {
+                  resetForNewQuestion();
+                  setGameState("question");
+                }
+              } else if (updated.status === "active" && updated.current_question_index === -1) {
+                setGameState("waiting");
+              }
+            }, 0);
 
-          if (updated.status === "finished") {
-            setGameState("finished");
-            return;
-          }
-
-          if (updated.status === "active" && updated.current_question_index >= 0) {
-            resetForNewQuestion();
-            setGameState("question");
-          } else if (updated.status === "active" && updated.current_question_index === -1) {
-            setGameState("waiting");
-          }
+            return { ...prev, ...updated };
+          });
         }
       )
       .subscribe();
@@ -95,32 +98,73 @@ export default function PlayerGameClient({
     return () => { supabase.removeChannel(channel); };
   }, [initialGame.id, supabase, resetForNewQuestion]);
 
+  // Record local start time to avoid server clock desyncs
+  useEffect(() => {
+    if (game.status === "active" && game.current_question_index >= 0 && !game.is_revealing) {
+      setLocalQuestionStartedAt(Date.now());
+    } else {
+      setLocalQuestionStartedAt(null);
+    }
+  }, [game.current_question_index, game.status, game.is_revealing]);
+
   // Countdown timer
   useEffect(() => {
-    if (gameState !== "question" || selectedAnswer) return;
+    if (!localQuestionStartedAt || game.is_revealing) return;
 
-    const interval = setInterval(() => {
-      setTimeLeft((prev: number) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setGameState("answered");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    let isCleared = false;
+    let interval: NodeJS.Timeout;
 
-    return () => clearInterval(interval);
-  }, [gameState, game.current_question_index, selectedAnswer]);
+    const updateTimer = () => {
+      if (isCleared) return;
+      const now = Date.now();
+      const elapsed = Math.floor((now - localQuestionStartedAt) / 1000);
+      const remaining = Math.max(0, TIME_LIMIT - elapsed);
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        if (interval) clearInterval(interval);
+        isCleared = true;
+        if (gameState !== "answered") setGameState("answered");
+      }
+    };
+
+    updateTimer(); // Initial check
+    interval = setInterval(updateTimer, 200);
+
+    return () => {
+      isCleared = true;
+      if (interval) clearInterval(interval);
+    };
+  }, [localQuestionStartedAt, game.is_revealing, TIME_LIMIT, gameState]);
+
+  // Sync total points from DB periodically or on question change
+  useEffect(() => {
+    if (game.current_question_index === -1) return;
+    
+    const fetchPoints = async () => {
+      const { data } = await supabase
+        .from("answers")
+        .select("points_earned")
+        .eq("game_id", initialGame.id)
+        .eq("participant_id", participant.id);
+      
+      if (data) {
+        const total = data.reduce((sum, a) => sum + a.points_earned, 0);
+        setTotalPoints(total);
+      }
+    };
+
+    fetchPoints();
+  }, [game.current_question_index, game.status, supabase, initialGame.id, participant.id]);
 
   const handleAnswer = async (label: string) => {
-    if (selectedAnswer || isSubmitting || !currentQuestion) return;
+    if (selectedAnswer || isSubmitting || !currentQuestion || game.is_revealing) return;
 
     setSelectedAnswer(label);
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`/play/${initialGame.id}/submitAnswer`, {
+      await fetch(`/play/${initialGame.id}/submitAnswer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -132,9 +176,6 @@ export default function PlayerGameClient({
         }),
       });
 
-      const result: AnswerResult = await res.json();
-      setAnswerResult(result);
-      setTotalPoints((prev) => prev + result.points_earned);
       setGameState("answered");
     } catch (err) {
       console.error("Failed to submit answer:", err);
@@ -224,33 +265,58 @@ export default function PlayerGameClient({
   const timerPercent = (timeLeft / TIME_LIMIT) * 100;
   const timerColor = timeLeft > 10 ? "bg-brand-lime" : timeLeft > 5 ? "bg-orange-400" : "bg-red-500";
 
-  // ─── ANSWERED STATE ───────────────────────────────────────────────────────
-  if (gameState === "answered") {
+  // ─── ANSWERED / REVEALING STATE ───────────────────────────────────────────
+  if (gameState === "answered" || game.is_revealing) {
+    const isCorrect = selectedAnswer === game.reveal_answer;
+    
     return (
       <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center p-6 text-brand-white text-center">
-        {answerResult ? (
+        {game.is_revealing ? (
           <>
-            {answerResult.is_correct ? (
-              <>
-                <CheckCircle2 className="w-24 h-24 text-status-correct mb-6" />
-                <h1 className="font-display text-5xl font-bold text-status-correct mb-3">Correct!</h1>
-                <p className="text-brand-muted text-xl mb-8">+{answerResult.points_earned} points</p>
-              </>
+            {selectedAnswer ? (
+              isCorrect ? (
+                <>
+                  <CheckCircle2 className="w-24 h-24 text-status-correct mb-6 animate-bounce" />
+                  <h1 className="font-display text-5xl font-bold text-status-correct mb-3">Correct!</h1>
+                  <div className="text-brand-muted text-xl mb-8">You chose <strong className="text-brand-white">{selectedAnswer}</strong></div>
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-24 h-24 text-status-wrong mb-6 animate-pulse" />
+                  <h1 className="font-display text-5xl font-bold text-status-wrong mb-3">Wrong</h1>
+                  <p className="text-brand-muted text-xl mb-4">
+                    The answer was <strong className="text-brand-white">{game.reveal_answer}</strong>
+                  </p>
+                  <div className="text-brand-muted mb-8">You chose {selectedAnswer}</div>
+                </>
+              )
             ) : (
               <>
-                <XCircle className="w-24 h-24 text-status-wrong mb-6" />
-                <h1 className="font-display text-5xl font-bold text-status-wrong mb-3">Wrong</h1>
-                <p className="text-brand-muted text-xl mb-4">The answer was <strong className="text-brand-white">{answerResult.correct_answer}</strong></p>
-                <p className="text-brand-muted mb-8">+0 points</p>
+                <div className="w-24 h-24 rounded-full border-4 border-brand-muted flex items-center justify-center mb-6">
+                  <span className="font-display text-4xl font-bold text-brand-muted">{game.reveal_answer}</span>
+                </div>
+                <h1 className="font-display text-5xl font-bold text-brand-muted mb-3">Time's up!</h1>
+                <p className="text-brand-muted text-xl mb-8">
+                  The correct answer was <strong className="text-brand-white">{game.reveal_answer}</strong>
+                </p>
               </>
             )}
-            <div className="text-brand-muted font-mono text-sm uppercase tracking-widest animate-pulse">Waiting for next question...</div>
+            <div className="text-brand-lime font-mono text-sm uppercase tracking-widest animate-pulse">Advancing...</div>
           </>
         ) : (
           <>
-            <Loader2 className="w-16 h-16 text-brand-muted animate-spin mb-6" />
-            <h1 className="font-display text-4xl font-bold mb-3">Time's up!</h1>
-            <p className="text-brand-muted text-xl">Waiting for next question...</p>
+            <div className="w-20 h-20 bg-brand-surface border border-brand-border rounded-full flex items-center justify-center mb-8 relative">
+              <Loader2 className="w-8 h-8 text-brand-muted animate-spin" />
+            </div>
+            <h1 className="font-display text-4xl font-bold mb-3">Answer Locked</h1>
+            <p className="text-brand-muted text-xl mb-8">
+              {timeLeft > 0 ? `Answer will be revealed in ${timeLeft}s...` : "Waiting for the organizer to reveal..."}
+            </p>
+            {selectedAnswer && (
+              <div className="bg-brand-surface px-6 py-3 border border-brand-border rounded-[2px] font-mono text-sm uppercase tracking-widest text-brand-muted">
+                You chose <span className="text-brand-white font-bold">{selectedAnswer}</span>
+              </div>
+            )}
           </>
         )}
       </div>
