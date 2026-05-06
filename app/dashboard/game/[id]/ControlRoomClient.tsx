@@ -52,18 +52,31 @@ export default function ControlRoomClient({
     setIsAdvancing(false);
   };
 
-  const handleReveal = async () => {
+  const handleReveal = async (retryCount = 0) => {
     if (game.is_revealing || isAdvancing) return;
     setIsAdvancing(true);
     try {
-      await fetch("/api/game/reveal", {
+      const res = await fetch("/api/game/reveal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameId: initialGame.id }),
       });
-      // The game state will update via the postgres_changes subscription
-    } catch (err) {
-      console.error("Failed to reveal:", err);
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      // Success! The game state will update via the postgres_changes subscription
+    } catch (err: any) {
+      console.error(`Failed to reveal (attempt ${retryCount + 1}):`, err);
+      if (retryCount < 2) {
+        // Simple linear backoff
+        setTimeout(() => {
+          setIsAdvancing(false); // Reset to allow retry
+          handleReveal(retryCount + 1);
+        }, 2000 * (retryCount + 1));
+        return; // Don't run finally yet
+      }
     } finally {
       setIsAdvancing(false);
     }
@@ -195,6 +208,12 @@ export default function ControlRoomClient({
               <Share2 className="w-4 h-4" />
             </button>
           </div>
+          {initialGame.reward_amount > 0 && (
+            <div className="flex items-center gap-2 font-mono bg-brand-surface px-4 py-2 border border-brand-border rounded-[2px]">
+              <span className="text-brand-muted text-xs uppercase tracking-widest">Prize:</span>
+              <span className="text-brand-white font-bold">{initialGame.reward_amount} {initialGame.reward_token}</span>
+            </div>
+          )}
           <Link href={`/dashboard/game/${initialGame.id}/summary`}
             className="px-4 py-2 border border-brand-border text-brand-muted hover:text-brand-lime hover:border-brand-lime transition-colors rounded-[2px] flex items-center gap-2 text-sm font-mono">
             <Users className="w-4 h-4" />Summary
@@ -251,7 +270,7 @@ export default function ControlRoomClient({
                     Start First Question
                   </button>
                 ) : !game.is_revealing ? (
-                  <button onClick={handleReveal} disabled={isAdvancing}
+                  <button onClick={() => handleReveal()} disabled={isAdvancing}
                     className="px-6 py-3 bg-brand-lime text-brand-black font-semibold rounded-[2px] hover:brightness-110 flex items-center gap-2 disabled:opacity-50">
                     {isAdvancing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
                     Reveal Answer

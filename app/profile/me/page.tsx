@@ -6,6 +6,8 @@ import GameStatsBlock from "../components/GameStatsBlock";
 import PlayHistoryBlock from "../components/PlayHistoryBlock";
 import GamesCreatedBlock from "../components/GamesCreatedBlock";
 import FollowButton from "../components/FollowButton";
+import TransactionHistory from "../components/TransactionHistory";
+import UnclaimedRewardsBanner from "@/app/components/UnclaimedRewardsBanner";
 import { getTokenBalance, USDC_MINT, USDG_MINT } from "@/utils/solana";
 import { getProfileStats } from "@/utils/stats";
 
@@ -34,6 +36,13 @@ export default async function OwnProfilePage() {
   // Fetch actual game stats
   const { stats, history, createdGames } = await getProfileStats(user.id);
 
+  // Fetch unclaimed rewards
+  const { data: unclaimedRewards } = await supabase
+    .from("reward_claims")
+    .select("id, game_id, position, amount, token, status, games(title)")
+    .eq("user_id", user.id)
+    .eq("status", "unclaimed");
+
   // Get follower count
   const { count: followerCount } = await supabase
     .from("follows")
@@ -53,11 +62,21 @@ export default async function OwnProfilePage() {
         />
       </div>
 
+      {/* Unclaimed Rewards Banner */}
+      {unclaimedRewards && unclaimedRewards.length > 0 && (
+        <UnclaimedRewardsBanner
+          claims={unclaimedRewards as any}
+          hasInAppWallet={!!profile.wallet_address}
+        />
+      )}
+
       <WalletBlock 
         walletAddress={profile.wallet_address} 
         usdcBalance={usdcBalance} 
         usdgBalance={usdgBalance} 
       />
+      
+      <TransactionHistory />
 
       <GameStatsBlock stats={stats} />
       

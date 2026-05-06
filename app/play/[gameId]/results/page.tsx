@@ -1,12 +1,15 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import BackButton from "@/app/components/BackButton";
+import ResultsClaim from "./ResultsClaim";
 
 export default async function GameResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = await params;
   const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: game, error } = await supabase
     .from("games")
@@ -15,7 +18,7 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
     .single();
 
   if (error || !game) notFound();
-  
+
   const organizer = game.profiles as any;
 
   // Aggregate leaderboard
@@ -36,7 +39,7 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
     if (row.points_earned > 0) scoreMap[pid].correct += 1;
   }
 
-  // Fetch handles for the users
+  // Fetch handles for users
   const userIds = Object.values(scoreMap).map(v => v.user_id).filter(Boolean) as string[];
   let handleMap: Record<string, string> = {};
   if (userIds.length > 0) {
@@ -50,14 +53,44 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
   }
 
   const leaderboard = Object.entries(scoreMap)
-    .map(([pid, v]) => ({ 
-      participant_id: pid, 
+    .map(([pid, v]) => ({
+      participant_id: pid,
       ...v,
-      handle: v.user_id ? handleMap[v.user_id] : null
+      handle: v.user_id ? handleMap[v.user_id] : null,
     }))
     .sort((a, b) => b.total_points - a.total_points);
 
+  // Fetch reward_claims for this game
+  const { data: allClaims } = await supabase
+    .from("reward_claims")
+    .select("id, participant_id, user_id, position, amount, token, status")
+    .eq("game_id", gameId);
+
+  // Find the current user's claim (if any)
+  const currentUserClaim = user
+    ? (allClaims || []).find(c => c.user_id === user.id)
+    : null;
+
+  // Build a map of participant_id → claim for the leaderboard display
+  const claimByParticipantId: Record<string, any> = {};
+  for (const c of allClaims || []) {
+    claimByParticipantId[c.participant_id] = c;
+  }
+
+  // Check if current user has an in-app wallet
+  let hasInAppWallet = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("wallet_address")
+      .eq("id", user.id)
+      .single();
+    hasInAppWallet = !!profile?.wallet_address;
+  }
+
   const medals = ["🥇", "🥈", "🥉"];
+
+  const rewardDist = game.reward_distribution as { position: number; percentage: number }[] | null;
 
   return (
     <div className="min-h-screen bg-brand-black text-brand-white flex flex-col p-6 md:p-12">
@@ -88,6 +121,7 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
           </div>
         </div>
 
+        {/* Prize Pool Summary */}
         {(game.reward_amount || game.reward) && (
           <div className="mb-8 p-5 border border-brand-lime bg-brand-lime/5 rounded-[2px]">
             <p className="font-mono text-brand-lime text-xs uppercase tracking-widest mb-2">🏆 Prize Pool</p>
@@ -96,14 +130,14 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
                 <p className="font-display text-2xl font-bold text-brand-white">
                   {game.reward_amount} <span className="text-brand-lime">{game.reward_token}</span>
                 </p>
-                {game.reward_distribution && (
+                {rewardDist && (
                   <div className="mt-3 space-y-1">
-                    {(game.reward_distribution as { position: number; percentage: number }[]).map((split) => {
-                      const ordinal = split.position === 1 ? '1st' : split.position === 2 ? '2nd' : split.position === 3 ? '3rd' : `${split.position}th`;
+                    {rewardDist.map((split) => {
+                      const ord = split.position === 1 ? "1st" : split.position === 2 ? "2nd" : split.position === 3 ? "3rd" : `${split.position}th`;
                       const payout = ((split.percentage / 100) * game.reward_amount!).toFixed(2);
                       return (
                         <div key={split.position} className="flex items-center justify-between font-mono text-sm">
-                          <span className="text-brand-muted">{ordinal} Place — {split.percentage}%</span>
+                          <span className="text-brand-muted">{ord} Place — {split.percentage}%</span>
                           <span className="text-brand-white font-semibold">{payout} {game.reward_token}</span>
                         </div>
                       );
@@ -127,27 +161,62 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
           <div className="text-center py-16 text-brand-muted">No answers recorded for this game yet.</div>
         ) : (
           <div className="flex flex-col gap-3">
-            {leaderboard.map((entry, idx) => (
-              <div key={entry.participant_id}
-                className={`flex items-center gap-5 p-5 rounded-[2px] border ${idx === 0 ? "border-brand-lime bg-brand-lime/10" : "border-brand-border bg-brand-surface"}`}>
-                <div className={`font-display text-2xl font-bold w-10 text-center shrink-0 ${idx === 0 ? "text-brand-lime" : idx < 3 ? "text-brand-white" : "text-brand-muted"}`}>
-                  {idx < 3 ? medals[idx] : `#${idx + 1}`}
-                </div>
-                <div className="flex-1 font-display text-xl font-bold">
-                  {entry.handle ? (
-                    <Link href={`/profile/${entry.handle}`} className="hover:text-brand-lime transition-colors underline decoration-dashed underline-offset-4">
-                      {entry.display_name}
-                    </Link>
-                  ) : (
-                    <span>{entry.display_name}</span>
+            {leaderboard.map((entry, idx) => {
+              const position = idx + 1;
+              const participantClaim = claimByParticipantId[entry.participant_id];
+              // Use the position stored in the claim, or fallback to index if no claim exists
+              const positionInClaim = participantClaim?.position ?? position;
+              
+              // Compute this position's individual prize
+              const splitForPos = rewardDist?.find(s => s.position === positionInClaim);
+              const positionPayout = splitForPos && game.reward_amount
+                ? ((splitForPos.percentage / 100) * game.reward_amount).toFixed(2)
+                : null;
+              // Is this entry the current logged-in user?
+              const isCurrentUser = user && entry.user_id === user.id;
+
+              return (
+                <div key={entry.participant_id}
+                  className={`rounded-[2px] border ${idx === 0 ? "border-brand-lime bg-brand-lime/10" : "border-brand-border bg-brand-surface"}`}>
+                  <div className="flex items-center gap-5 p-5">
+                    <div className={`font-display text-2xl font-bold w-10 text-center shrink-0 ${idx === 0 ? "text-brand-lime" : idx < 3 ? "text-brand-white" : "text-brand-muted"}`}>
+                      {idx < 3 ? medals[idx] : `#${position}`}
+                    </div>
+                    <div className="flex-1 font-display text-xl font-bold">
+                      {entry.handle ? (
+                        <Link href={`/profile/${entry.handle}`} className="hover:text-brand-lime transition-colors underline decoration-dashed underline-offset-4">
+                          {entry.display_name}
+                        </Link>
+                      ) : (
+                        <span>{entry.display_name}</span>
+                      )}
+                      {isCurrentUser && <span className="ml-2 text-xs font-mono text-brand-lime">(you)</span>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className={`font-display text-2xl font-bold ${idx === 0 ? "text-brand-lime" : "text-brand-white"}`}>{entry.total_points}</div>
+                      <div className="font-mono text-xs text-brand-muted">{entry.correct} correct</div>
+                    </div>
+                  </div>
+
+                  {/* Per-winner prize payout + claim button (only for rewarded participants) */}
+                  {positionPayout && participantClaim && (
+                    <div className="border-t border-brand-border/50 px-5 py-3 flex items-center justify-between gap-4">
+                      <span className="font-mono text-sm text-brand-muted">
+                        Prize: <span className="text-brand-lime font-bold">{positionPayout} {game.reward_token}</span>
+                      </span>
+                      {/* Show claim UI client-side — only for the winner themselves or guests */}
+                      <ResultsClaim
+                        claim={participantClaim as any}
+                        isCurrentUser={!!isCurrentUser}
+                        isGuest={!entry.user_id}
+                        currentUserId={user?.id ?? null}
+                        hasInAppWallet={hasInAppWallet}
+                      />
+                    </div>
                   )}
                 </div>
-                <div className="text-right shrink-0">
-                  <div className={`font-display text-2xl font-bold ${idx === 0 ? "text-brand-lime" : "text-brand-white"}`}>{entry.total_points}</div>
-                  <div className="font-mono text-xs text-brand-muted">{entry.correct} correct</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

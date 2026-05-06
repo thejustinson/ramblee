@@ -47,6 +47,18 @@ export default function FundingClient({
   const activateGame = async () => {
     setIsActivating(true);
     const supabase = createClient();
+    
+    // Record the deposit in history
+    await supabase.from("transaction_history").insert({
+      user_id: (await supabase.auth.getUser()).data.user?.id,
+      type: "deposit",
+      game_id: gameId,
+      amount: rewardAmount,
+      token: rewardToken,
+      source_wallet: "External",
+      dest_wallet: escrowWallet
+    });
+
     await supabase
       .from("games")
       .update({ status: "draft" })

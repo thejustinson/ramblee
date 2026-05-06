@@ -13,7 +13,7 @@ export default async function GameSummaryPage({ params }: { params: Promise<{ id
 
   const { data: game, error } = await supabase
     .from("games")
-    .select("id, title, mode, status, join_code, reward, organiser_id")
+    .select("id, title, mode, status, join_code, reward_amount, reward_token, organiser_id")
     .eq("id", id)
     .single();
 
@@ -100,6 +100,15 @@ export default async function GameSummaryPage({ params }: { params: Promise<{ id
             </div>
             <div className="font-mono text-xs uppercase tracking-widest text-brand-muted">Winner</div>
           </div>
+          {(game.reward_amount ?? 0) > 0 && (
+            <div className="bg-brand-surface border border-brand-border p-6 rounded-[2px] flex-1 min-w-[200px]">
+              <div className="w-6 h-6 text-brand-lime mb-3 font-bold">$</div>
+              <div className="font-display text-3xl font-bold mb-1">
+                {game.reward_amount} <span className="text-sm font-mono text-brand-muted">{game.reward_token}</span>
+              </div>
+              <div className="font-mono text-xs uppercase tracking-widest text-brand-muted">Total Prize Pool</div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 mb-6 border-b border-brand-border pb-4">

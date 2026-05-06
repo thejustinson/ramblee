@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { Plus, History, Trophy, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import ShareButton from "./ShareButton";
+import UnclaimedRewardsBanner from "@/app/components/UnclaimedRewardsBanner";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const resolvedSearchParams = await searchParams;
@@ -28,6 +29,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .select("id, display_name, game_id, games(id, title, mode, status)")
     .eq("user_id", user!.id)
     .order("joined_at", { ascending: false });
+
+  // Fetch unclaimed rewards
+  const { data: unclaimedRewards } = await supabase
+    .from("reward_claims")
+    .select("id, game_id, position, amount, token, status, games(title)")
+    .eq("user_id", user!.id)
+    .eq("status", "unclaimed");
 
   // Scores per participation
   const participantIds = (participations || []).map((p) => p.id);
@@ -93,6 +101,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </Link>
         </div>
       </div>
+
+      {/* Unclaimed Rewards Banner */}
+      {unclaimedRewards && unclaimedRewards.length > 0 && (
+        <UnclaimedRewardsBanner
+          claims={unclaimedRewards as any}
+          hasInAppWallet={!!profile?.wallet_address}
+        />
+      )}
 
       {/* Games Created */}
       <div className="flex flex-col gap-6">

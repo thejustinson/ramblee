@@ -97,9 +97,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to advance game" }, { status: 500 });
     }
 
-    // 6. IF FINISHED, COMPUTE WINNER AND NOTIFY FOLLOWERS
+    // 6. IF FINISHED, COMPUTE LEADERBOARD, REWARD CLAIMS, AND NOTIFY FOLLOWERS
     if (isFinished) {
-      // a. Compute Leaderboard
+      // a. Aggregate scores
       const { data: answers } = await supabase
         .from("answers")
         .select("participant_id, points_earned")
@@ -111,26 +111,62 @@ export async function POST(req: NextRequest) {
           scores[a.participant_id] = (scores[a.participant_id] || 0) + a.points_earned;
         });
 
-        // Find the participant with the max score
-        let winnerPid = "";
-        let maxScore = -1;
-        for (const [pid, score] of Object.entries(scores)) {
-          if (score > maxScore) {
-            maxScore = score;
-            winnerPid = pid;
+        // Rank all participants by score (descending)
+        const ranked = Object.entries(scores)
+          .sort(([, a], [, b]) => b - a)
+          .map(([pid], idx) => ({ pid, position: idx + 1 }));
+
+        // b. Look up game reward config
+        const rewardDistribution: { position: number; percentage: number }[] | null =
+          game.reward_distribution ?? null;
+        const rewardAmount: number | null = game.reward_amount ?? null;
+        const rewardToken: string | null = game.reward_token ?? null;
+
+        // c. Insert reward_claims for each rewarded position
+        if (rewardDistribution && rewardAmount && rewardToken) {
+          const claimInserts: any[] = [];
+
+          for (const split of rewardDistribution) {
+            const winner = ranked.find(r => r.position === split.position);
+            if (!winner) continue;
+
+            // Fetch participant's user_id (null for guests)
+            const { data: participant } = await supabase
+              .from("participants")
+              .select("user_id, display_name")
+              .eq("id", winner.pid)
+              .single();
+
+            const payoutAmount = parseFloat(
+              ((split.percentage / 100) * rewardAmount).toFixed(6)
+            );
+
+            claimInserts.push({
+              game_id: gameId,
+              participant_id: winner.pid,
+              user_id: participant?.user_id ?? null,
+              position: split.position,
+              amount: payoutAmount,
+              token: rewardToken,
+              status: "unclaimed",
+            });
+          }
+
+          if (claimInserts.length > 0) {
+            await supabase.from("reward_claims").insert(claimInserts);
           }
         }
 
-        if (winnerPid) {
-          // b. Get winner's user_id
+        // d. Notify followers of the overall winner (1st place)
+        const overallWinner = ranked[0];
+        if (overallWinner) {
           const { data: winnerParticipant } = await supabase
             .from("participants")
             .select("user_id, display_name")
-            .eq("id", winnerPid)
+            .eq("id", overallWinner.pid)
             .single();
 
           if (winnerParticipant?.user_id) {
-            // c. Get followers of the winner
             const { data: followers } = await supabase
               .from("follows")
               .select("follower_id")
@@ -148,7 +184,7 @@ export async function POST(req: NextRequest) {
                 actor_id: winnerParticipant.user_id,
                 type: "game_win",
                 message: `${winnerParticipant.display_name} just won a game: ${game.title}!`,
-                link: `/profile/${winnerProfile?.handle || ''}`
+                link: `/profile/${winnerProfile?.handle || ""}`,
               }));
 
               await supabase.from("notifications").insert(notifications);

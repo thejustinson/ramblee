@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { PrivyClient } from "@privy-io/server-auth";
+import { transferSplToken } from "@/utils/solana-server";
 
 export async function POST(request: Request) {
   try {
@@ -29,18 +30,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No wallet found for user" }, { status: 404 });
     }
 
-    // 2. Initialize Privy Client
+    // 2. Initialize Privy Client to find the Wallet ID
     const privy = new PrivyClient(
-      process.env.PRIVY_APP_ID || '',
-      process.env.PRIVY_APP_SECRET || '',
+      process.env.PRIVY_APP_ID!,
+      process.env.PRIVY_APP_SECRET!,
       {
         walletApi: {
-          authorizationPrivateKey: process.env.PRIVY_AUTHORIZATION_KEY || ''
+          authorizationPrivateKey: process.env.PRIVY_AUTHORIZATION_KEY || ""
         }
       }
     );
 
     // 3. Find the Server Wallet ID for this address
+    // In a high-traffic app, we should store wallet_id in our DB to avoid this API call
     const { data: wallets } = await privy.walletApi.getWallets();
     const serverWallet = wallets.find(w => w.address === profile.wallet_address && w.chainType === 'solana');
 
@@ -48,21 +50,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Custodial wallet not found in Privy" }, { status: 404 });
     }
 
-    // 4. Send transaction via Privy Server Wallets API
-    // Note: In a production environment, you must construct the Solana transaction using @solana/web3.js 
-    // and submit it to Privy for signing. Since @privy-io/server-auth handles EVM natively but Solana 
-    // requires custom transaction building, we simulate the structure here.
-    
-    // For SPL Tokens (USDC/USDG), we would build a Transaction with a transferInstruction
-    // Since this is a demo/beta integration, we will mock the successful signing if it's purely UI for now,
-    // or return a note that Solana SPL token transfer building is required.
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 4. Execute the on-chain transfer
+    const signature = await transferSplToken(
+      serverWallet.id,
+      profile.wallet_address,
+      recipient,
+      parseFloat(amount),
+      token
+    );
+
+    // 5. Record in history
+    await supabase.from("transaction_history").insert({
+      user_id: user.id,
+      type: "withdrawal",
+      amount: parseFloat(amount),
+      token: token,
+      tx_id: signature,
+      source_wallet: profile.wallet_address,
+      dest_wallet: recipient
+    });
 
     return NextResponse.json({ 
       success: true, 
-      signature: "5K" + Math.random().toString(36).substring(2) + "solana_signature_mocked",
+      signature,
       message: `Successfully transferred ${amount} ${token} to ${recipient}`
     });
 
