@@ -363,7 +363,9 @@ export default function Home() {
           scrolled ? "bg-brand-black border-b border-brand-border" : "bg-transparent border-b border-transparent"
         }`}
       >
-        <div className="font-display font-bold text-xl tracking-wider uppercase">Ramblee</div>
+        <Link href={user ? "/dashboard" : "/"} className="font-display font-bold text-xl tracking-wider uppercase hover:text-brand-lime transition-colors">
+          Ramblee
+        </Link>
         <div className="flex items-center gap-6">
           {user ? (
             <>

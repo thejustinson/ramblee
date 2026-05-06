@@ -97,6 +97,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to advance game" }, { status: 500 });
     }
 
+    // 6. IF FINISHED, COMPUTE WINNER AND NOTIFY FOLLOWERS
+    if (isFinished) {
+      // a. Compute Leaderboard
+      const { data: answers } = await supabase
+        .from("answers")
+        .select("participant_id, points_earned")
+        .eq("game_id", gameId);
+
+      if (answers && answers.length > 0) {
+        const scores: Record<string, number> = {};
+        answers.forEach(a => {
+          scores[a.participant_id] = (scores[a.participant_id] || 0) + a.points_earned;
+        });
+
+        // Find the participant with the max score
+        let winnerPid = "";
+        let maxScore = -1;
+        for (const [pid, score] of Object.entries(scores)) {
+          if (score > maxScore) {
+            maxScore = score;
+            winnerPid = pid;
+          }
+        }
+
+        if (winnerPid) {
+          // b. Get winner's user_id
+          const { data: winnerParticipant } = await supabase
+            .from("participants")
+            .select("user_id, display_name")
+            .eq("id", winnerPid)
+            .single();
+
+          if (winnerParticipant?.user_id) {
+            // c. Get followers of the winner
+            const { data: followers } = await supabase
+              .from("follows")
+              .select("follower_id")
+              .eq("following_id", winnerParticipant.user_id);
+
+            if (followers && followers.length > 0) {
+              const { data: winnerProfile } = await supabase
+                .from("profiles")
+                .select("handle")
+                .eq("id", winnerParticipant.user_id)
+                .single();
+
+              const notifications = followers.map(f => ({
+                user_id: f.follower_id,
+                actor_id: winnerParticipant.user_id,
+                type: "game_win",
+                message: `${winnerParticipant.display_name} just won a game: ${game.title}!`,
+                link: `/profile/${winnerProfile?.handle || ''}`
+              }));
+
+              await supabase.from("notifications").insert(notifications);
+            }
+          }
+        }
+      }
+    }
+
     return NextResponse.json({ success: true, finished: isFinished });
   } catch (err) {
     console.error("Reveal API error:", err);

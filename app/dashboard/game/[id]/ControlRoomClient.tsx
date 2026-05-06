@@ -5,6 +5,7 @@ import { ArrowLeft, Play, Users, Loader2, ChevronRight, ExternalLink, Share2 } f
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import ShareModal from "@/components/ShareModal";
+import BackButton from "@/app/components/BackButton";
 
 const AUTO_ADVANCE_SECONDS = 30;
 
@@ -176,7 +177,7 @@ export default function ControlRoomClient({
     <div className="min-h-screen bg-brand-black flex flex-col text-brand-white">
       <header className="border-b border-brand-border bg-brand-surface py-4 px-6 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-brand-muted hover:text-brand-white transition-colors"><ArrowLeft className="w-5 h-5" /></Link>
+          <BackButton />
           <div>
             <h1 className="font-display font-bold text-xl">{game.title}</h1>
             <div className="font-mono text-xs text-brand-muted uppercase mt-1">Control Room • {game.mode}</div>
@@ -194,6 +195,10 @@ export default function ControlRoomClient({
               <Share2 className="w-4 h-4" />
             </button>
           </div>
+          <Link href={`/dashboard/game/${initialGame.id}/summary`}
+            className="px-4 py-2 border border-brand-border text-brand-muted hover:text-brand-lime hover:border-brand-lime transition-colors rounded-[2px] flex items-center gap-2 text-sm font-mono">
+            <Users className="w-4 h-4" />Summary
+          </Link>
           <Link href={`/dashboard/game/${initialGame.id}/projection`} target="_blank"
             className="px-4 py-2 border border-brand-border text-brand-muted hover:text-brand-white hover:border-brand-white transition-colors rounded-[2px] flex items-center gap-2 text-sm font-mono">
             <ExternalLink className="w-4 h-4" />Projection

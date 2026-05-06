@@ -1,9 +1,11 @@
 import { createClient } from "@/utils/supabase/server";
-import { Plus, History, Trophy } from "lucide-react";
+import { Plus, History, Trophy, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import ShareButton from "./ShareButton";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const resolvedSearchParams = await searchParams;
+  const errorParam = resolvedSearchParams.error as string | undefined;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -53,6 +55,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-16">
+      {errorParam && (
+        <div className="bg-status-wrong/10 border border-status-wrong p-4 rounded-[2px] flex items-start gap-3 mb-[-2rem]">
+          <AlertCircle className="w-5 h-5 text-status-wrong shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-display font-bold text-status-wrong text-lg">Action Failed</h3>
+            <p className="text-status-wrong/80 text-sm">{errorParam}</p>
+          </div>
+        </div>
+      )}
+
       {/* Welcome */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="flex items-center gap-6">

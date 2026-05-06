@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 import { User, LogOut } from "lucide-react";
+import NotificationsDropdown from "@/app/components/NotificationsDropdown";
 
 export default async function DashboardLayout({
   children,
@@ -34,6 +35,7 @@ export default async function DashboardLayout({
           Ramblee <span className="text-brand-lime text-xs tracking-normal align-top ml-1">BETA</span>
         </Link>
         <div className="flex items-center gap-4">
+          <NotificationsDropdown userId={user.id} />
           <Link href="/profile/me" className="flex items-center gap-3 text-sm text-brand-muted hover:text-brand-white transition-colors group">
             <span className="hidden sm:inline-block font-mono">@{profile.handle}</span>
             {profile.avatar_url ? (
