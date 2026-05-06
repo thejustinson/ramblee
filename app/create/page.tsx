@@ -17,6 +17,13 @@ export default function CreateGamePage() {
   const [questionCount, setQuestionCount] = useState(10);
   const [timePerQuestion, setTimePerQuestion] = useState(30);
   const [difficultyLevel, setDifficultyLevel] = useState("mixed");
+  
+  // Reward Config
+  const [enableRewards, setEnableRewards] = useState(false);
+  const [rewardToken, setRewardToken] = useState("USDC");
+  const [rewardAmount, setRewardAmount] = useState("");
+  const [rewardSplits, setRewardSplits] = useState([{ position: 1, percentage: 100 }]);
+  
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -197,13 +204,94 @@ export default function CreateGamePage() {
             <div className="flex justify-between font-mono text-brand-muted text-xs mt-1"><span>10</span><span>20</span></div>
           </div>
 
-          {/* Reward */}
+          {/* Reward Settings */}
           <div>
-            <label htmlFor="reward" className="block text-sm font-medium text-brand-muted mb-2 uppercase tracking-wide font-mono">
-              Prize / Reward <span className="normal-case text-xs">(optional)</span>
-            </label>
-            <input id="reward" name="reward" type="text" placeholder="e.g. ₦5,000 airtime for the winner"
-              className="w-full bg-brand-black border border-brand-border rounded-[2px] py-4 px-4 text-brand-white focus:outline-none focus:border-brand-lime transition-colors" />
+            <div className="flex items-center justify-between mb-4">
+              <label className="text-sm font-medium text-brand-muted uppercase tracking-wide font-mono">Prize Pool / Rewards</label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className={`text-sm font-mono ${enableRewards ? "text-brand-lime" : "text-brand-muted"}`}>
+                  {enableRewards ? "Enabled" : "Disabled"}
+                </span>
+                <input type="checkbox" checked={enableRewards} onChange={(e) => setEnableRewards(e.target.checked)} className="hidden" />
+                <div className={`w-10 h-5 rounded-full p-1 transition-colors ${enableRewards ? "bg-brand-lime" : "bg-brand-border"}`}>
+                  <div className={`w-3 h-3 bg-brand-black rounded-full transition-transform ${enableRewards ? "translate-x-5" : "translate-x-0"}`} />
+                </div>
+              </label>
+            </div>
+
+            {enableRewards && (
+              <div className="space-y-6 bg-brand-black p-6 rounded-[2px] border border-brand-border/50">
+                <input type="hidden" name="enable_rewards" value="true" />
+                <input type="hidden" name="reward_splits" value={JSON.stringify(rewardSplits)} />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="reward_amount" className="block text-xs text-brand-muted mb-2 uppercase font-mono tracking-wider">Total Amount</label>
+                    <div className="flex bg-brand-surface border border-brand-border rounded-[2px]">
+                      <input id="reward_amount" name="reward_amount" type="number" step="0.01" min="0" placeholder="0.00" required value={rewardAmount} onChange={(e) => setRewardAmount(e.target.value)}
+                        className="w-full bg-transparent py-3 px-4 text-brand-white focus:outline-none focus:border-brand-lime transition-colors text-lg" />
+                      <select id="reward_token" name="reward_token" value={rewardToken} onChange={(e) => setRewardToken(e.target.value)}
+                        className="bg-brand-black border-l border-brand-border px-4 text-brand-lime font-bold focus:outline-none">
+                        <option value="USDC">USDC</option>
+                        <option value="USDG">USDG</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-xs text-brand-muted uppercase font-mono tracking-wider">Prize Distribution (%)</label>
+                    <span className={`text-xs font-mono ${rewardSplits.reduce((sum, s) => sum + s.percentage, 0) === 100 ? "text-brand-lime" : "text-status-wrong"}`}>
+                      Total: {rewardSplits.reduce((sum, s) => sum + s.percentage, 0)}%
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {rewardSplits.map((split, idx) => (
+                      <div key={idx} className="flex items-center gap-3">
+                        <div className="w-12 h-10 bg-brand-surface border border-brand-border flex items-center justify-center font-mono text-sm rounded-[2px]">
+                          {split.position}{split.position === 1 ? 'st' : split.position === 2 ? 'nd' : split.position === 3 ? 'rd' : 'th'}
+                        </div>
+                        <div className="relative flex-1">
+                          <input 
+                            type="number" 
+                            min="1" max="100" 
+                            value={split.percentage}
+                            onChange={(e) => {
+                              const newSplits = [...rewardSplits];
+                              newSplits[idx].percentage = Number(e.target.value);
+                              setRewardSplits(newSplits);
+                            }}
+                            className="w-full bg-brand-surface border border-brand-border rounded-[2px] py-2 px-4 pr-8 text-brand-white focus:outline-none focus:border-brand-lime"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted font-mono">%</span>
+                        </div>
+                        {idx > 0 && (
+                          <button type="button" onClick={() => setRewardSplits(rewardSplits.filter((_, i) => i !== idx))} className="text-brand-muted hover:text-status-wrong p-2">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {rewardSplits.length < 10 && (
+                    <button 
+                      type="button" 
+                      onClick={() => setRewardSplits([...rewardSplits, { position: rewardSplits.length + 1, percentage: 0 }])}
+                      className="mt-3 text-xs font-mono text-brand-muted hover:text-brand-lime transition-colors uppercase tracking-widest border border-dashed border-brand-border hover:border-brand-lime w-full py-2 rounded-[2px]"
+                    >
+                      + Add Winner Position
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-4 bg-brand-surface border border-brand-border text-xs text-brand-muted rounded-[2px]">
+                  <strong>Escrow Required:</strong> You will be asked to deposit this amount into a generated game wallet before the room can be launched.
+                </div>
+              </div>
+            )}
           </div>
 
           <button type="submit" disabled={loading || (inputMode === "file" && !uploadedFile)}

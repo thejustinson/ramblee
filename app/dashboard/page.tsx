@@ -103,22 +103,28 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
         {games && games.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {games.map((game) => (
-              <Link key={game.id} href={`/dashboard/game/${game.id}`}
-                className="bg-brand-surface border border-brand-border rounded-[2px] p-6 hover:border-brand-white transition-colors group flex flex-col gap-4">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-display font-bold text-xl group-hover:text-brand-lime transition-colors">{game.title}</h3>
-                  <div className="text-xs font-mono uppercase tracking-widest text-brand-muted border border-brand-border px-2 py-1 rounded-[2px]">{game.status}</div>
-                </div>
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-brand-border/50">
-                  <div className="font-mono text-sm text-brand-muted">{game.mode}</div>
-                  <div className="flex items-center gap-4">
-                    <ShareButton gameTitle={game.title} joinCode={game.join_code} questionCount={game.question_count} reward={game.reward} />
-                    <div className="font-mono text-sm font-bold tracking-widest text-brand-white">{game.join_code}</div>
+            {games.map((game) => {
+              const isFunding = game.status === "funding";
+              const href = isFunding ? `/dashboard/game/${game.id}/funding` : `/dashboard/game/${game.id}`;
+              return (
+                <Link key={game.id} href={href}
+                  className={`border rounded-[2px] p-6 transition-colors group flex flex-col gap-4 ${isFunding ? "bg-yellow-950/20 border-yellow-700/50 hover:border-yellow-500" : "bg-brand-surface border-brand-border hover:border-brand-white"}`}>
+                  <div className="flex justify-between items-start">
+                    <h3 className={`font-display font-bold text-xl transition-colors ${isFunding ? "group-hover:text-yellow-400" : "group-hover:text-brand-lime"}`}>{game.title}</h3>
+                    <div className={`text-xs font-mono uppercase tracking-widest border px-2 py-1 rounded-[2px] ${isFunding ? "text-yellow-400 border-yellow-700" : "text-brand-muted border-brand-border"}`}>
+                      {isFunding ? "⏳ Awaiting Deposit" : game.status}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-brand-border/50">
+                    <div className="font-mono text-sm text-brand-muted">{game.mode}</div>
+                    <div className="flex items-center gap-4">
+                      {!isFunding && <ShareButton gameTitle={game.title} joinCode={game.join_code} questionCount={game.question_count} reward={game.reward} />}
+                      <div className="font-mono text-sm font-bold tracking-widest text-brand-white">{game.join_code}</div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center border border-dashed border-brand-border rounded-[2px] bg-brand-surface/30">

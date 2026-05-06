@@ -10,7 +10,7 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
 
   const { data: game, error } = await supabase
     .from("games")
-    .select("id, title, mode, status, join_code, reward, organiser_id, profiles(handle, display_name)")
+    .select("id, title, mode, status, join_code, reward, reward_amount, reward_token, reward_distribution, organiser_id, profiles(handle, display_name)")
     .eq("id", gameId)
     .single();
 
@@ -88,10 +88,32 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
           </div>
         </div>
 
-        {game.reward && (
-          <div className="mb-8 p-4 border border-brand-lime bg-brand-lime/10 rounded-[2px]">
-            <span className="font-mono text-brand-lime text-xs uppercase tracking-widest">🎁 Prize — </span>
-            <span className="font-semibold text-brand-white">{game.reward}</span>
+        {(game.reward_amount || game.reward) && (
+          <div className="mb-8 p-5 border border-brand-lime bg-brand-lime/5 rounded-[2px]">
+            <p className="font-mono text-brand-lime text-xs uppercase tracking-widest mb-2">🏆 Prize Pool</p>
+            {game.reward_amount ? (
+              <>
+                <p className="font-display text-2xl font-bold text-brand-white">
+                  {game.reward_amount} <span className="text-brand-lime">{game.reward_token}</span>
+                </p>
+                {game.reward_distribution && (
+                  <div className="mt-3 space-y-1">
+                    {(game.reward_distribution as { position: number; percentage: number }[]).map((split) => {
+                      const ordinal = split.position === 1 ? '1st' : split.position === 2 ? '2nd' : split.position === 3 ? '3rd' : `${split.position}th`;
+                      const payout = ((split.percentage / 100) * game.reward_amount!).toFixed(2);
+                      return (
+                        <div key={split.position} className="flex items-center justify-between font-mono text-sm">
+                          <span className="text-brand-muted">{ordinal} Place — {split.percentage}%</span>
+                          <span className="text-brand-white font-semibold">{payout} {game.reward_token}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="font-semibold text-brand-white">{game.reward}</p>
+            )}
           </div>
         )}
 
