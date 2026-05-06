@@ -124,6 +124,9 @@ export async function POST(req: NextRequest) {
 
         // c. Insert reward_claims for each rewarded position
         if (rewardDistribution && rewardAmount && rewardToken) {
+          // Clean up any existing unclaimed rewards for this game (prevents duplicates on re-reveal)
+          await supabase.from("reward_claims").delete().eq("game_id", gameId).eq("status", "unclaimed");
+
           const claimInserts: any[] = [];
 
           for (const split of rewardDistribution) {

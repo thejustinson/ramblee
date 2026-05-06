@@ -53,7 +53,7 @@ export default async function OwnProfilePage() {
     <>
       <IdentityBlock profile={{...profile, email: user.email}} isOwnProfile={true} />
       
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-start mb-4">
         <FollowButton 
           targetUserId={user.id} 
           initialIsFollowing={false} 
