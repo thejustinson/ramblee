@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Trophy } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import ClaimRewardModal from "@/app/components/ClaimRewardModal";
 
 const ANSWER_LABELS = ["A", "B", "C", "D"];
 const ANSWER_COLORS = [
@@ -25,12 +26,16 @@ export default function PlayerGameClient({
   participant,
   initialTotalPoints = 0,
   answeredQuestionIds = [],
+  initialRewardClaim = null,
+  hasInAppWallet = false,
 }: {
   initialGame: any;
   questions: any[];
   participant: any;
   initialTotalPoints?: number;
   answeredQuestionIds?: string[];
+  initialRewardClaim?: { id: string; position: number; amount: number; token: string; status: string } | null;
+  hasInAppWallet?: boolean;
 }) {
   const TIME_LIMIT = initialGame.time_per_question || 30;
   const [game, setGame] = useState(initialGame);
@@ -52,6 +57,9 @@ export default function PlayerGameClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalPoints, setTotalPoints] = useState(initialTotalPoints);
   const [localQuestionStartedAt, setLocalQuestionStartedAt] = useState<number | null>(null);
+  const [rewardClaim, setRewardClaim] = useState(initialRewardClaim);
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimDone, setClaimDone] = useState(initialRewardClaim?.status === "claimed");
 
   const supabase = createClient();
 
@@ -97,6 +105,28 @@ export default function PlayerGameClient({
 
     return () => { supabase.removeChannel(channel); };
   }, [initialGame.id, supabase, resetForNewQuestion]);
+
+  // When game ends, poll once for a reward_claim for this participant
+  useEffect(() => {
+    if (gameState !== "finished") return;
+    // Already have a claim from SSR
+    if (rewardClaim) return;
+
+    const fetchClaim = async () => {
+      const { data } = await supabase
+        .from("reward_claims")
+        .select("id, position, amount, token, status")
+        .eq("participant_id", participant.id)
+        .eq("game_id", initialGame.id)
+        .single();
+      if (data) setRewardClaim(data);
+    };
+
+    // Try immediately, then retry after 3s in case reveal just happened
+    fetchClaim();
+    const t = setTimeout(fetchClaim, 3000);
+    return () => clearTimeout(t);
+  }, [gameState, rewardClaim, supabase, participant.id, initialGame.id]);
 
   // Record local start time to avoid server clock desyncs
   useEffect(() => {
@@ -229,14 +259,32 @@ export default function PlayerGameClient({
           <div className="text-brand-muted font-mono text-sm mt-1">points</div>
         </div>
 
-        <div className="flex flex-col gap-4 w-full max-w-sm">
-          {game.reward && (
+      <div className="flex flex-col gap-4 w-full max-w-sm">
+          {/* Reward claim — only shown to actual winners */}
+          {rewardClaim && rewardClaim.status !== "claimed" && (
             <div className="p-5 border border-brand-lime bg-brand-lime/10 rounded-[2px]">
-              <div className="text-xs font-mono uppercase tracking-widest text-brand-lime mb-2">🎁 Prize / Reward</div>
-              <p className="text-brand-white font-semibold text-lg mb-4">{game.reward}</p>
-              <button className="w-full py-3 bg-brand-lime text-brand-black font-bold rounded-[2px] hover:brightness-110 transition-all">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-brand-lime mb-2">
+                <Trophy className="w-4 h-4" /> You Won!
+              </div>
+              <p className="text-brand-white font-bold text-2xl mb-1">
+                {rewardClaim.amount.toFixed(2)} <span className="text-brand-lime">{rewardClaim.token}</span>
+              </p>
+              <p className="text-brand-muted text-sm mb-4 font-mono">#{rewardClaim.position} Place Prize</p>
+              <button
+                onClick={() => setShowClaimModal(true)}
+                className="w-full py-3 bg-brand-lime text-brand-black font-bold rounded-[2px] hover:brightness-110 transition-all"
+              >
                 🎉 Claim Reward
               </button>
+            </div>
+          )}
+          {rewardClaim && claimDone && (
+            <div className="p-5 border border-brand-lime/30 bg-brand-lime/5 rounded-[2px] flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-brand-lime shrink-0" />
+              <div>
+                <p className="text-brand-lime font-bold text-sm">Reward Claimed</p>
+                <p className="text-brand-muted text-xs font-mono">{rewardClaim.amount.toFixed(2)} {rewardClaim.token}</p>
+              </div>
             </div>
           )}
           <a href={`/play/${initialGame.id}/results`}
@@ -248,6 +296,19 @@ export default function PlayerGameClient({
             Back to Dashboard
           </a>
         </div>
+
+        {showClaimModal && rewardClaim && (
+          <ClaimRewardModal
+            claimId={rewardClaim.id}
+            amount={rewardClaim.amount}
+            token={rewardClaim.token}
+            position={rewardClaim.position}
+            isGuest={!participant.user_id}
+            hasInAppWallet={hasInAppWallet}
+            onClose={() => setShowClaimModal(false)}
+            onSuccess={() => { setClaimDone(true); setShowClaimModal(false); }}
+          />
+        )}
       </div>
     );
   }

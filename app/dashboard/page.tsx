@@ -74,30 +74,30 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       )}
 
       {/* Welcome */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="flex items-center gap-6">
-          <div className="w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-full overflow-hidden border-2 border-brand-border bg-brand-surface">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-full overflow-hidden border-2 border-brand-border bg-brand-surface">
             {user?.user_metadata?.avatar_url ? (
               <img src={user.user_metadata.avatar_url} alt={profile?.display_name || "User avatar"} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl font-display text-brand-muted uppercase">
+              <div className="w-full h-full flex items-center justify-center text-2xl font-display text-brand-muted uppercase">
                 {profile?.display_name?.charAt(0) || user?.email?.charAt(0) || "?"}
               </div>
             )}
           </div>
           <div>
-            <h1 className="font-display text-4xl md:text-5xl font-bold mb-2">
+            <h1 className="font-display text-3xl md:text-5xl font-bold mb-1">
               Welcome back, {profile?.display_name?.split(" ")[0] || "Player"}
             </h1>
-            <p className="text-brand-muted font-mono">@{profile?.handle}</p>
+            <p className="text-brand-muted font-mono text-sm">@{profile?.handle}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <Link href="/join" className="px-6 py-4 border border-brand-border hover:border-brand-white text-brand-white font-semibold rounded-[2px] hover:bg-brand-surface transition-colors flex items-center gap-3">
+        <div className="flex gap-3 shrink-0">
+          <Link href="/join" className="flex-1 md:flex-none px-4 md:px-6 py-3 md:py-4 border border-brand-border hover:border-brand-white text-brand-white font-semibold rounded-[2px] hover:bg-brand-surface transition-colors flex items-center justify-center gap-2 text-sm md:text-base">
             Join Game
           </Link>
-          <Link href="/create" className="px-6 py-4 bg-brand-lime text-brand-black font-semibold rounded-[2px] hover:brightness-110 transition-all flex items-center gap-3 shadow-[0_0_20px_rgba(200,255,0,0.15)]">
-            <Plus className="w-5 h-5" />Create Game
+          <Link href="/create" className="flex-1 md:flex-none px-4 md:px-6 py-3 md:py-4 bg-brand-lime text-brand-black font-semibold rounded-[2px] hover:brightness-110 transition-all flex items-center justify-center gap-2 text-sm md:text-base shadow-[0_0_20px_rgba(200,255,0,0.15)]">
+            <Plus className="w-4 h-4 md:w-5 md:h-5" />Create Game
           </Link>
         </div>
       </div>

@@ -25,7 +25,7 @@ export default async function PlayerWaitingRoom({ params }: { params: Promise<{ 
   // Fetch game
   const { data: game, error: gameError } = await supabase
     .from("games")
-    .select("id, title, mode, status, current_question_index, question_started_at, reward, time_per_question")
+    .select("id, title, mode, status, current_question_index, question_started_at, reward, reward_amount, reward_token, time_per_question")
     .eq("id", gameId)
     .single();
 
@@ -65,6 +65,26 @@ export default async function PlayerWaitingRoom({ params }: { params: Promise<{ 
   const initialTotalPoints = (existingAnswers || []).reduce((sum, a) => sum + a.points_earned, 0);
   const answeredQuestionIds = (existingAnswers || []).map((a) => a.question_id);
 
+  // Fetch this participant's reward claim (null if they didn't win)
+  const { data: rewardClaim } = await supabase
+    .from("reward_claims")
+    .select("id, position, amount, token, status")
+    .eq("participant_id", participantId)
+    .eq("game_id", gameId)
+    .single();
+
+  // Check if the logged-in user has an in-app wallet
+  const { data: { user } } = await supabase.auth.getUser();
+  let hasInAppWallet = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("wallet_address")
+      .eq("id", user.id)
+      .single();
+    hasInAppWallet = !!profile?.wallet_address;
+  }
+
   return (
     <PlayerGameClient
       initialGame={game}
@@ -72,6 +92,8 @@ export default async function PlayerWaitingRoom({ params }: { params: Promise<{ 
       participant={participant}
       initialTotalPoints={initialTotalPoints}
       answeredQuestionIds={answeredQuestionIds}
+      initialRewardClaim={rewardClaim ?? null}
+      hasInAppWallet={hasInAppWallet}
     />
   );
 }

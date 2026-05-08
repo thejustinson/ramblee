@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Wallet, Copy, Check, ArrowUpRight, AlertCircle, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 interface WalletBlockProps {
   walletAddress: string | null;
@@ -125,8 +126,8 @@ export default function WalletBlock({ walletAddress, usdcBalance, usdgBalance }:
               <p className="text-[10px] uppercase tracking-widest text-brand-muted mb-1">Balance</p>
               <h3 className="font-display text-4xl font-bold text-brand-white">{usdcBalance.toLocaleString()} <span className="text-base text-brand-muted">USDC</span></h3>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[#2775CA]/10 flex items-center justify-center border border-[#2775CA]/30">
-              <span className="font-bold text-[#2775CA]">$</span>
+            <div className="w-10 h-10 rounded-full overflow-hidden border border-[#2775CA]/30 shrink-0">
+              <Image src="/usdc.png" alt="USDC" width={40} height={40} className="w-full h-full object-cover" />
             </div>
           </div>
           <button 
@@ -145,8 +146,8 @@ export default function WalletBlock({ walletAddress, usdcBalance, usdgBalance }:
               <p className="text-[10px] uppercase tracking-widest text-brand-muted mb-1">Balance</p>
               <h3 className="font-display text-4xl font-bold text-brand-white">{usdgBalance.toLocaleString()} <span className="text-base text-brand-muted">USDG</span></h3>
             </div>
-            <div className="w-10 h-10 rounded-full bg-brand-lime/10 flex items-center justify-center border border-brand-lime/30">
-              <span className="font-bold text-brand-lime">G</span>
+            <div className="w-10 h-10 rounded-full overflow-hidden border border-brand-lime/30 shrink-0">
+              <Image src="/usdg.png" alt="USDG" width={40} height={40} className="w-full h-full object-cover" />
             </div>
           </div>
           <button 

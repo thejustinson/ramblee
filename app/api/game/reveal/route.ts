@@ -186,16 +186,28 @@ export async function POST(req: NextRequest) {
                 user_id: f.follower_id,
                 actor_id: winnerParticipant.user_id,
                 type: "game_win",
-                message: `${winnerParticipant.display_name} just won a game: ${game.title}!`,
-                link: `/profile/${winnerProfile?.handle || ""}`,
+                message: `${winnerParticipant.display_name} just won "${game.title}"! 🏆`,
+                link: `/play/${gameId}/results`,
               }));
 
               await supabase.from("notifications").insert(notifications);
             }
-          }
-        }
-      }
-    }
+
+            // Also notify the winner themselves
+            if (winnerParticipant.user_id) {
+              await supabase.from("notifications").insert({
+                user_id: winnerParticipant.user_id,
+                actor_id: winnerParticipant.user_id,
+                type: "game_win",
+                message: `You won "${game.title}"! Claim your reward. 🎉`,
+                link: `/play/${gameId}/results`,
+              });
+            }
+
+          } // end if followers
+        } // end for winners
+      } // end if isFinished
+    } // end for questions
 
     return NextResponse.json({ success: true, finished: isFinished });
   } catch (err) {
