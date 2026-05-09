@@ -222,7 +222,7 @@ export default function ControlRoomClient({
             className="px-4 py-2 border border-brand-border text-brand-muted hover:text-brand-white hover:border-brand-white transition-colors rounded-[2px] flex items-center gap-2 text-sm font-mono">
             <ExternalLink className="w-4 h-4" />Projection
           </Link>
-          {game.status === "draft" && (
+          {(game.status === "draft" || game.status === "funded") && (
             <button onClick={handleLaunch} disabled={isLaunching}
               className="px-6 py-2 bg-brand-lime text-brand-black font-semibold rounded-[2px] hover:brightness-110 flex items-center gap-2 disabled:opacity-50">
               {isLaunching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}

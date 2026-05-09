@@ -22,40 +22,6 @@ export async function GET(request: Request) {
         .eq('id', user.id)
         .single()
         
-      if (profile && !profile.wallet_address) {
-        try {
-          const privy = new PrivyClient(
-            process.env.PRIVY_APP_ID || '',
-            process.env.PRIVY_APP_SECRET || '',
-            {
-              walletApi: {
-                authorizationPrivateKey: process.env.PRIVY_AUTHORIZATION_KEY || ''
-              }
-            }
-          )
-          
-          // Create a Solana Server Wallet for this user
-          const { address, id: walletId } = await privy.walletApi.create({
-            chainType: 'solana'
-          })
-          
-          if (address) {
-            // Need to save both the public address and the internal Privy Wallet ID 
-            // since Server Wallets require their ID for sending transactions later.
-            // We should add `privy_wallet_id` to the database schema in the future, 
-            // but for now we only update wallet_address as requested.
-            await supabase
-              .from('profiles')
-              .update({ wallet_address: address })
-              .eq('id', user.id)
-          }
-        } catch (err: any) {
-          console.error("Failed to provision Privy wallet:", err)
-          // Pass the error message to the client so the user can see what failed
-          return NextResponse.redirect(`${origin}/dashboard?error=${encodeURIComponent("Wallet Provisioning Failed: " + (err.message || "Unknown error"))}`)
-        }
-      }
-
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

@@ -39,30 +39,24 @@ export default function FundingClient({
     const balance = await getTokenBalance(escrowWallet, mintAddress);
     setCurrentBalance(balance);
     if (balance >= rewardAmount) {
-      setFunded(true);
+      try {
+        const res = await fetch('/api/game/fund', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId }),
+        });
+        const data = await res.json();
+        if (res.ok && data.funded) {
+          setFunded(true);
+        }
+      } catch (err) {
+        console.error('Funding confirmation failed:', err);
+      }
     }
-  }, [escrowWallet, mintAddress, rewardAmount]);
+  }, [escrowWallet, mintAddress, rewardAmount, gameId]);
 
-  // Activate game once funded
   const activateGame = async () => {
     setIsActivating(true);
-    const supabase = createClient();
-    
-    // Record the deposit in history
-    await supabase.from("transaction_history").insert({
-      user_id: (await supabase.auth.getUser()).data.user?.id,
-      type: "deposit",
-      game_id: gameId,
-      amount: rewardAmount,
-      token: rewardToken,
-      source_wallet: "External",
-      dest_wallet: escrowWallet
-    });
-
-    await supabase
-      .from("games")
-      .update({ status: "draft" })
-      .eq("id", gameId);
     router.push(`/dashboard/game/${gameId}`);
   };
 
@@ -109,14 +103,14 @@ export default function FundingClient({
             <div className="flex flex-col items-center text-center gap-4">
               <CheckCircle2 className="w-16 h-16 text-brand-lime" />
               <h2 className="font-display text-3xl font-bold">Funds Received!</h2>
-              <p className="text-brand-muted">Your escrow has been funded. The game is ready to go live.</p>
+              <p className="text-brand-muted">Your escrow has been confirmed on-chain. The room is ready to launch.</p>
               <button
                 onClick={activateGame}
                 disabled={isActivating}
                 className="mt-4 flex items-center gap-2 px-8 py-4 bg-brand-lime text-brand-black font-bold rounded-[2px] hover:brightness-110 transition-all disabled:opacity-60"
               >
                 {isActivating ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" /> Activating...</>
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Opening Control Room...</>
                 ) : (
                   <>Open Control Room <ArrowRight className="w-5 h-5" /></>
                 )}

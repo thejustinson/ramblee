@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import { createClient } from '@/utils/supabase/server';
-import { PrivyClient } from '@privy-io/server-auth';
+import { assignEscrowWalletToGame } from '@/utils/escrow';
 import { redirect } from 'next/navigation';
 
 export async function createGame(formData: FormData) {
@@ -25,6 +25,7 @@ export async function createGame(formData: FormData) {
   const rewardToken = enableRewards ? (formData.get('reward_token') as string) : null;
   const rewardSplitsRaw = formData.get('reward_splits') as string;
   const rewardDistribution = enableRewards && rewardSplitsRaw ? JSON.parse(rewardSplitsRaw) : null;
+  const returnWalletAddress = enableRewards ? (formData.get('return_wallet_address') as string) : null;
 
   // Build the Gemini prompt based on generation mode
   const modeInstruction = generationMode === 'guided'
@@ -111,36 +112,9 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
 
   if (!questions || questions.length === 0) return { error: "AI returned no questions." };
 
-  // If rewards are enabled, generate a Privy Server Wallet to act as escrow
-  let escrowWalletAddress: string | null = null;
-  let escrowWalletId: string | null = null;
-
-  if (enableRewards && rewardAmount && rewardAmount > 0) {
-    if (!process.env.PRIVY_APP_ID || !process.env.PRIVY_APP_SECRET) {
-      return { error: "Privy credentials not configured. Cannot create escrow wallet." };
-    }
-    try {
-      const privy = new PrivyClient(
-        process.env.PRIVY_APP_ID,
-        process.env.PRIVY_APP_SECRET,
-        {
-          walletApi: {
-            authorizationPrivateKey: process.env.PRIVY_AUTHORIZATION_KEY || ''
-          }
-        }
-      );
-      const { address, id: walletId } = await privy.walletApi.create({ chainType: 'solana' });
-      escrowWalletAddress = address;
-      escrowWalletId = walletId;
-    } catch (err: any) {
-      console.error("Failed to create escrow wallet:", err);
-      return { error: "Failed to generate game escrow wallet. Please try again." };
-    }
-  }
-
-  // Create Game in Supabase
+  // Create Game in Supabase first, then assign an escrow wallet if rewards are enabled.
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-  const gameStatus = enableRewards && escrowWalletAddress ? 'funding' : 'draft';
+  const gameStatus = enableRewards ? 'funding' : 'draft';
 
   const { data: game, error: gameError } = await supabase.from('games').insert({
     title,
@@ -152,8 +126,7 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
     reward_amount: rewardAmount,
     reward_token: rewardToken,
     reward_distribution: rewardDistribution,
-    escrow_wallet: escrowWalletAddress,
-    escrow_wallet_id: escrowWalletId,
+    return_wallet_address: returnWalletAddress,
     question_count: questionCount,
     generation_mode: generationMode,
     time_per_question: timePerQuestion,
@@ -176,12 +149,24 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
   }));
 
   const { error: qError } = await supabase.from('questions').insert(formattedQuestions);
-  if (qError) return { error: "Database error while saving questions." };
+  if (qError) return { error: 'Database error while saving questions.' };
 
-  // Redirect to funding page if escrow was created, otherwise go straight to control room
-  const nextUrl = gameStatus === 'funding'
-    ? `/dashboard/game/${game.id}/funding`
-    : `/dashboard/game/${game.id}`;
+  if (enableRewards && rewardAmount && rewardAmount > 0) {
+    try {
+      const escrow = await assignEscrowWalletToGame(supabase, game.id);
+      await supabase
+        .from('games')
+        .update({
+          escrow_wallet: escrow.wallet_address,
+          escrow_wallet_id: escrow.privy_wallet_id,
+        })
+        .eq('id', game.id);
+    } catch (err: any) {
+      console.error('Escrow assignment error:', err);
+      return { error: 'Failed to assign game escrow wallet. Please try again.' };
+    }
+  }
 
+  const nextUrl = enableRewards ? `/dashboard/game/${game.id}/funding` : `/dashboard/game/${game.id}`;
   return { success: true, url: nextUrl };
 }

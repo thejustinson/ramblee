@@ -23,6 +23,7 @@ export default function CreateGamePage() {
   const [rewardToken, setRewardToken] = useState("USDC");
   const [rewardAmount, setRewardAmount] = useState("");
   const [rewardSplits, setRewardSplits] = useState([{ position: 1, percentage: 100 }]);
+  const [returnWalletAddress, setReturnWalletAddress] = useState("");
   
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +47,7 @@ export default function CreateGamePage() {
       formData.set("time_per_question", timePerQuestion.toString());
       formData.set("difficulty_level", difficultyLevel);
       formData.set("input_mode", inputMode);
+      formData.set("return_wallet_address", returnWalletAddress);
       if (uploadedFile) formData.set("document", uploadedFile);
       
       const result = await createGame(formData);
@@ -236,6 +238,21 @@ export default function CreateGamePage() {
                         <option value="USDG">USDG</option>
                       </select>
                     </div>
+                  </div>
+                  <div>
+                    <label htmlFor="return_wallet_address" className="block text-xs text-brand-muted mb-2 uppercase font-mono tracking-wider">Return Wallet (optional)</label>
+                    <input
+                      id="return_wallet_address"
+                      name="return_wallet_address"
+                      type="text"
+                      placeholder="Solana wallet address"
+                      value={returnWalletAddress}
+                      onChange={(e) => setReturnWalletAddress(e.target.value)}
+                      className="w-full bg-brand-surface border border-brand-border rounded-[2px] py-3 px-4 text-brand-white focus:outline-none focus:border-brand-lime transition-colors text-sm"
+                    />
+                    <p className="text-xs text-brand-muted mt-2 font-mono">
+                      Used to return unclaimed funds after the 30-day claim window expires.
+                    </p>
                   </div>
                 </div>
 

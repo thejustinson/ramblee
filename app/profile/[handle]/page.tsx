@@ -10,7 +10,6 @@ import TransactionHistory from "../components/TransactionHistory";
 import UnclaimedRewardsBanner from "@/app/components/UnclaimedRewardsBanner";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getTokenBalance, USDC_MINT, USDG_MINT } from "@/utils/solana";
 import { getProfileStats } from "@/utils/stats";
 
 export default async function ProfilePage({ params }: { params: Promise<{ handle: string }> }) {
@@ -41,21 +40,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const isOwnProfile = user?.id === profile.id;
 
   // ── Data for own profile ────────────────────────────────────────────────────
-  let usdcBalance = 0;
-  let usdgBalance = 0;
   let unclaimedRewards: any[] = [];
 
   if (isOwnProfile) {
-    [usdcBalance, usdgBalance] = await Promise.all([
-      getTokenBalance(profile.wallet_address, USDC_MINT),
-      getTokenBalance(profile.wallet_address, USDG_MINT),
-    ]);
-
     const { data: claims } = await supabase
-      .from("reward_claims")
-      .select("id, game_id, position, amount, token, status, games(title)")
-      .eq("user_id", user!.id)
-      .eq("status", "unclaimed");
+      .from('reward_payouts')
+      .select('id, game_id, position, amount, token, status, expires_at, games(title)')
+      .eq('user_id', user!.id)
+      .eq('status', 'pending_claim');
     unclaimedRewards = claims ?? [];
   }
 
@@ -108,8 +100,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
           <WalletBlock
             walletAddress={profile.wallet_address}
-            usdcBalance={usdcBalance}
-            usdgBalance={usdgBalance}
           />
 
           <TransactionHistory />
