@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { transferSplToken } from "@/utils/solana-server";
+import { reconcileEscrowWalletAfterPayouts } from "@/utils/escrow";
+import { createFeedEvent, deleteFeedEvent } from '@/utils/feed-events';
+
+type RewardClaimRow = {
+  id: string;
+  game_id: string;
+  amount: number;
+  token: string;
+  user_id: string | null;
+  participant_id: string | null;
+  position: number | null;
+  status: string;
+  games: {
+    escrow_wallet: string | null;
+    escrow_wallet_id: string | null;
+    reward_token: string | null;
+    title: string | null;
+  };
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,11 +36,13 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     // Fetch the claim record
-    const { data: claim } = await supabase
+    const { data: claimData } = await supabase
       .from("reward_claims")
-      .select("*, games(escrow_wallet, escrow_wallet_id, reward_token)")
+      .select("*, games(escrow_wallet, escrow_wallet_id, reward_token, title)")
       .eq("id", claimId)
       .single();
+
+    const claim = claimData as RewardClaimRow | null;
 
     if (!claim) {
       return NextResponse.json({ error: "Claim not found" }, { status: 404 });
@@ -35,7 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const game = claim.games as any;
+    const game = claim.games;
     if (!game?.escrow_wallet || !game?.escrow_wallet_id) {
       return NextResponse.json({ error: "Game has no escrow wallet configured" }, { status: 400 });
     }
@@ -78,15 +99,16 @@ export async function POST(req: NextRequest) {
         claim.amount,
         claim.token
       );
-    } catch (transferErr: any) {
+    } catch (transferErr: unknown) {
       // Revert status on failure
       await supabase
         .from("reward_claims")
         .update({ status: "failed" })
         .eq("id", claimId);
+      const transferError = transferErr instanceof Error ? transferErr : new Error('Transfer failed');
       console.error("Token transfer failed:", transferErr);
       return NextResponse.json(
-        { error: `Transfer failed: ${transferErr.message}` },
+        { error: `Transfer failed: ${transferError.message}` },
         { status: 500 }
       );
     }
@@ -114,8 +136,25 @@ export async function POST(req: NextRequest) {
       dest_wallet: destinationAddress
     });
 
+    if (claim.user_id) {
+      await deleteFeedEvent(supabase, claim.user_id, 'reward_pending', `claim-${claim.game_id}-${claim.participant_id}-${claim.position}`);
+      await createFeedEvent(supabase, claim.user_id, 'reward_claimed', {
+        game_id: claim.game_id,
+        title: game.title,
+        amount: claim.amount,
+        token: claim.token,
+        claim_id: claim.id,
+      }, `claim-${claim.id}`);
+    }
+
+    try {
+      await reconcileEscrowWalletAfterPayouts(supabase, claim.game_id);
+    } catch (reconcileErr: unknown) {
+      console.error("Escrow reconciliation failed after claim:", reconcileErr);
+    }
+
     return NextResponse.json({ success: true, tx: txSignature });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Claim API error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

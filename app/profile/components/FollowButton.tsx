@@ -10,12 +10,15 @@ export default function FollowButton({
   targetUserId, 
   initialIsFollowing, 
   followerCount = 0,
-  isOwnProfile = false
+  isOwnProfile = false,
+  showFollowerCounts = true,
 }: { 
   targetUserId: string, 
   initialIsFollowing: boolean,
   followerCount?: number,
-  isOwnProfile?: boolean
+  isOwnProfile?: boolean,
+  /** When false, only the Follow/Unfollow control is shown (no follower count / modal trigger). */
+  showFollowerCounts?: boolean,
 }) {
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [count, setCount] = useState(followerCount);
@@ -102,20 +105,24 @@ export default function FollowButton({
           </button>
         )}
         
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex flex-col text-left hover:text-brand-lime transition-colors group cursor-pointer"
-        >
-          <span className="font-display font-bold text-xl group-hover:text-brand-lime transition-colors">{count}</span>
-          <span className="text-[10px] uppercase tracking-widest text-brand-muted group-hover:text-brand-lime/80 transition-colors">Followers</span>
-        </button>
+        {showFollowerCounts && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex flex-col text-left hover:text-brand-lime transition-colors group cursor-pointer"
+          >
+            <span className="font-display font-bold text-xl group-hover:text-brand-lime transition-colors">{count}</span>
+            <span className="text-[10px] uppercase tracking-widest text-brand-muted group-hover:text-brand-lime/80 transition-colors">Followers</span>
+          </button>
+        )}
       </div>
 
-      <FollowersModal 
-        targetUserId={targetUserId}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {showFollowerCounts && (
+        <FollowersModal 
+          targetUserId={targetUserId}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
     </>
   );
 }

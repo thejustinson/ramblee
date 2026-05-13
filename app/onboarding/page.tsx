@@ -20,9 +20,9 @@ export default function OnboardingPage() {
     setError(null);
 
     // Validate handle (alphanumeric and underscores only)
-    const handleRegex = /^[a-zA-Z0-9_]{3,15}$/;
+    const handleRegex = /^[a-zA-Z0-9_]{3,20}$/;
     if (!handleRegex.test(handle)) {
-      setError("Handle must be 3-15 characters long and contain only letters, numbers, and underscores.");
+      setError("Handle must be 3-20 characters long and contain only letters, numbers, and underscores.");
       setLoading(false);
       return;
     }
@@ -40,14 +40,17 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Try to update the profile
+    // Ensure the profile row exists and write the onboarding fields.
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({
-        handle: handle.toLowerCase(),
-        display_name: displayName.trim(),
-      })
-      .eq("id", user.id);
+      .upsert(
+        {
+          id: user.id,
+          handle: handle.toLowerCase(),
+          display_name: displayName.trim(),
+        },
+        { onConflict: ["id"] }
+      );
 
     if (updateError) {
       if (updateError.code === '23505') { // Unique violation in Postgres

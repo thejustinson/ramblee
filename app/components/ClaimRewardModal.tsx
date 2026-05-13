@@ -27,13 +27,13 @@ export default function ClaimRewardModal({
   onClose,
   onSuccess,
 }: ClaimRewardModalProps) {
-  const [step, setStep] = useState<"choose" | "external" | "loading" | "success" | "error">("choose");
+  const [step, setStep] = useState<"external" | "loading" | "success" | "error">("external");
   const [externalAddress, setExternalAddress] = useState("");
   const [txSignature, setTxSignature] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const handleClaim = async (walletType: "inapp" | "external") => {
+  const handleClaim = async () => {
     setStep("loading");
     try {
       const res = await fetch("/api/reward/claim", {
@@ -41,8 +41,8 @@ export default function ClaimRewardModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           claimId,
-          walletType,
-          externalAddress: walletType === "external" ? externalAddress : undefined,
+          walletType: "external",
+          externalAddress,
         }),
       });
       const data = await res.json();
@@ -85,59 +85,18 @@ export default function ClaimRewardModal({
         </div>
 
         <div className="p-6">
-          {/* Guest Warning */}
-          {isGuest && step === "choose" && (
-            <div className="mb-5 p-4 bg-yellow-950/40 border border-yellow-700 rounded-[2px] flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-200">
-                <strong className="block mb-1">You&apos;re playing as a guest</strong>
-                Your claim is tied to this browser session only. If you leave without claiming,
-                you may lose access to this reward. Claim immediately or{" "}
-                <a href="/login" className="underline text-yellow-400 hover:text-yellow-200">create an account</a>.
-              </div>
-            </div>
-          )}
-
-          {/* Choose step */}
-          {step === "choose" && (
-            <div className="space-y-3">
-              {!isGuest && hasInAppWallet && (
-                <button
-                  onClick={() => handleClaim("inapp")}
-                  className="w-full flex items-center gap-4 p-5 border border-brand-border hover:border-brand-lime bg-brand-black rounded-[2px] transition-all group"
-                >
-                  <div className="w-10 h-10 bg-brand-surface border border-brand-border rounded-[2px] flex items-center justify-center group-hover:border-brand-lime transition-colors">
-                    <Wallet className="w-5 h-5 text-brand-lime" />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-semibold text-brand-white">Claim to In-App Wallet</div>
-                    <div className="text-xs text-brand-muted font-mono mt-0.5">
-                      Your Ramblee custodial wallet
-                    </div>
-                  </div>
-                </button>
-              )}
-
-              <button
-                onClick={() => setStep("external")}
-                className="w-full flex items-center gap-4 p-5 border border-brand-border hover:border-brand-white bg-brand-black rounded-[2px] transition-all group"
-              >
-                <div className="w-10 h-10 bg-brand-surface border border-brand-border rounded-[2px] flex items-center justify-center group-hover:border-brand-white transition-colors">
-                  <ExternalLink className="w-5 h-5 text-brand-muted group-hover:text-brand-white transition-colors" />
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold text-brand-white">Claim to External Wallet</div>
-                  <div className="text-xs text-brand-muted font-mono mt-0.5">
-                    Phantom, Solflare, or any Solana wallet
-                  </div>
-                </div>
-              </button>
-            </div>
-          )}
-
-          {/* External address step */}
+          {/* External address input */}
           {step === "external" && (
             <div className="space-y-4">
+              {isGuest && (
+                <div className="mb-4 p-4 bg-blue-950/40 border border-blue-700 rounded-[2px] flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-200">
+                    <strong className="block mb-1">Playing as a guest?</strong>
+                    No problem! Provide your Solana wallet address below to receive your prize directly.
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-brand-muted font-mono uppercase tracking-wider mb-2">
                   Your Solana Wallet Address
@@ -153,21 +112,13 @@ export default function ClaimRewardModal({
                   ⚠ Double-check your address. Token transfers cannot be reversed.
                 </p>
               </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setStep("choose")}
-                  className="flex-1 py-3 border border-brand-border text-brand-muted rounded-[2px] hover:text-brand-white transition-colors font-mono text-sm"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={() => handleClaim("external")}
-                  disabled={externalAddress.length < 32}
-                  className="flex-1 py-3 bg-brand-lime text-brand-black font-bold rounded-[2px] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Confirm & Claim
-                </button>
-              </div>
+              <button
+                onClick={handleClaim}
+                disabled={externalAddress.length < 32}
+                className="w-full py-3 bg-brand-lime text-brand-black font-bold rounded-[2px] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Claim to Wallet
+              </button>
             </div>
           )}
 
@@ -221,7 +172,7 @@ export default function ClaimRewardModal({
               <p className="font-semibold text-status-wrong">Transfer Failed</p>
               <p className="text-brand-muted text-sm font-mono max-w-xs">{errorMsg}</p>
               <button
-                onClick={() => setStep("choose")}
+                onClick={() => setStep("external")}
                 className="px-6 py-2 border border-brand-border text-brand-white rounded-[2px] hover:bg-brand-surface transition-colors font-mono text-sm"
               >
                 Try Again

@@ -89,6 +89,11 @@ export default async function AdminPage() {
     { data: recentUsers },
     { data: topOrganisers },
     { data: finishedWithPrizes },
+    { count: totalEscrows },
+    { count: availableEscrows },
+    { count: assignedEscrows },
+    { count: pendingSweepEscrows },
+    { data: rewardPayoutsData },
   ] = await Promise.all([
     adminDb.from("profiles").select("id", { count: "exact", head: true }),
     adminDb.from("games").select("id", { count: "exact", head: true }),
@@ -103,6 +108,11 @@ export default async function AdminPage() {
     adminDb.from("profiles").select("id, handle, display_name, created_at").order("created_at", { ascending: false }).limit(10),
     adminDb.from("games").select("organiser_id, profiles!games_organiser_id_fkey(handle, display_name)").order("created_at", { ascending: false }),
     adminDb.from("games").select("reward_amount, reward_token").eq("status", "finished").not("reward_amount", "is", null).gt("reward_amount", 0),
+    adminDb.from("escrow_wallets").select("id", { count: "exact", head: true }),
+    adminDb.from("escrow_wallets").select("id", { count: "exact", head: true }).eq("status", "available"),
+    adminDb.from("escrow_wallets").select("id", { count: "exact", head: true }).eq("status", "assigned"),
+    adminDb.from("escrow_wallets").select("id", { count: "exact", head: true }).eq("status", "pending_sweep"),
+    adminDb.from("reward_payouts").select("id, status, amount, token"),
   ]);
 
   // ── Derived numbers ──────────────────────────────────────────────────────────
@@ -234,6 +244,96 @@ export default async function AdminPage() {
           value={claims.length}
         />
       </div>
+
+      {/* ── Escrow Pool Health ─────────────────────────────────────────────── */}
+      <div>
+        <SectionHeader title="Escrow Pool Health" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            icon={Wallet}
+            label="Total Escrow Wallets"
+            value={(totalEscrows ?? 0).toLocaleString()}
+            accent={false}
+          />
+          <StatCard
+            icon={CheckCircle2}
+            label="Available Escrows"
+            value={(availableEscrows ?? 0).toLocaleString()}
+            sub="ready to assign"
+            accent
+          />
+          <StatCard
+            icon={Activity}
+            label="Assigned Escrows"
+            value={(assignedEscrows ?? 0).toLocaleString()}
+            sub="currently in use"
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="Pending Sweep"
+            value={(pendingSweepEscrows ?? 0).toLocaleString()}
+            sub="need reconciliation"
+          />
+        </div>
+      </div>
+
+      {/* ── Reward Payouts Status ──────────────────────────────────────────── */}
+      {rewardPayoutsData && rewardPayoutsData.length > 0 && (() => {
+        const payoutsByStatus = {
+          pending_claim: (rewardPayoutsData ?? []).filter(p => p.status === 'pending_claim').length,
+          pending_retry: (rewardPayoutsData ?? []).filter(p => p.status === 'pending_retry').length,
+          completed: (rewardPayoutsData ?? []).filter(p => p.status === 'completed').length,
+          expired: (rewardPayoutsData ?? []).filter(p => p.status === 'expired').length,
+          failed: (rewardPayoutsData ?? []).filter(p => p.status === 'failed').length,
+        };
+        const totalPayouts = rewardPayoutsData.length;
+        const successRate = totalPayouts > 0 ? Math.round((payoutsByStatus.completed / totalPayouts) * 100) : 0;
+        return (
+          <div>
+            <SectionHeader title="Reward Payouts Status" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <StatCard
+                icon={CheckCircle2}
+                label="Completed Payouts"
+                value={payoutsByStatus.completed}
+                accent
+              />
+              <StatCard
+                icon={Clock}
+                label="Pending Claims"
+                value={payoutsByStatus.pending_claim}
+                sub="waiting for user action"
+              />
+              <StatCard
+                icon={XCircle}
+                label="Expired Claims"
+                value={payoutsByStatus.expired}
+                sub="30+ days unclaimed"
+              />
+            </div>
+            <div className="bg-white/[0.03] border border-white/10 rounded-[2px] p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-1">Overall Success Rate</div>
+                  <div className="font-display text-4xl font-bold text-white">{successRate}%</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-white/40">{payoutsByStatus.completed} of {totalPayouts} payouts completed</div>
+                  {payoutsByStatus.failed > 0 && (
+                    <div className="text-sm text-red-400 mt-2">⚠️ {payoutsByStatus.failed} failed payout{payoutsByStatus.failed !== 1 ? 's' : ''}</div>
+                  )}
+                </div>
+              </div>
+              <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand-lime rounded-full transition-all duration-500"
+                  style={{ width: `${successRate}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Prize Pool vs. Claimed (unified $ view) ───────────────────────── */}
       {(sumTokenMap(prizePoolByToken) > 0 || sumTokenMap(claimedByToken) > 0) && (() => {

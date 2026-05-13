@@ -208,7 +208,7 @@ export default async function GameResultsPage({ params }: { params: Promise<{ ga
                       <ResultsClaim
                         claim={participantClaim as any}
                         isCurrentUser={!!isCurrentUser}
-                        isGuest={!entry.user_id}
+                        isGuest={!user}
                         currentUserId={user?.id ?? null}
                         hasInAppWallet={hasInAppWallet}
                       />

@@ -17,6 +17,43 @@ import { PrivyClient } from "@privy-io/server-auth";
 import { TOKEN_MINTS, getSolanaConnection } from "./solana";
 
 /**
+ * Retry wrapper for Privy API calls to handle HTTP/2 session issues
+ */
+async function withPrivyRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+
+      // Check if this is an HTTP/2 session error that we should retry
+      const isRetryableError = error.message?.includes('fetch failed') ||
+                              error.message?.includes('session has been destroyed') ||
+                              error.code === 'ERR_HTTP2_INVALID_SESSION' ||
+                              error.code === 'ECONNRESET' ||
+                              error.code === 'ETIMEDOUT';
+
+      if (!isRetryableError || attempt === maxRetries) {
+        throw error;
+      }
+
+      // Exponential backoff with jitter
+      const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
+      console.warn(`Privy API call failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms:`, error.message);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError!;
+}
+
+/**
  * Generic SPL token transfer using a platform fee-payer.
  * The source wallet only needs the tokens; the platform wallet pays for gas.
  */
@@ -49,7 +86,9 @@ export async function transferSplToken(
   const destinationPubkey = new PublicKey(destinationAddress);
 
   // Get the platform wallet's address to use as fee payer
-  const platformWallet = await privy.walletApi.getWallet({ id: platformWalletId });
+  const platformWallet = await withPrivyRetry(
+    () => privy.walletApi.getWallet({ id: platformWalletId })
+  );
   const feePayer = new PublicKey(platformWallet.address);
 
   // Get mint decimals
@@ -90,16 +129,20 @@ export async function transferSplToken(
   );
 
   // Have the SOURCE wallet sign (it's the token authority)
-  const sourceSigned = await privy.walletApi.solana.signTransaction({
-    walletId: sourceWalletId,
-    transaction: tx,
-  });
+  const sourceSigned = await withPrivyRetry(
+    () => privy.walletApi.solana.signTransaction({
+      walletId: sourceWalletId,
+      transaction: tx,
+    })
+  );
 
   // Have the PLATFORM wallet sign (it's the fee payer)
-  const platformSigned = await privy.walletApi.solana.signTransaction({
-    walletId: platformWalletId,
-    transaction: sourceSigned.signedTransaction,
-  });
+  const platformSigned = await withPrivyRetry(
+    () => privy.walletApi.solana.signTransaction({
+      walletId: platformWalletId,
+      transaction: sourceSigned.signedTransaction,
+    })
+  );
 
   // Serialize and broadcast the fully-signed transaction
   const signedTx = platformSigned.signedTransaction.serialize();

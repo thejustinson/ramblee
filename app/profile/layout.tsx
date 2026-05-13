@@ -20,7 +20,7 @@ export default async function ProfileLayout({ children }: { children: React.Reac
         </div>
       </nav>
       
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-12 space-y-6 md:space-y-12">
+      <main className="flex-1 w-full max-w-2xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-10">
         {children}
       </main>
     </div>

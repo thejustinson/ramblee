@@ -60,6 +60,7 @@ export default function PlayerGameClient({
   const [rewardClaim, setRewardClaim] = useState(initialRewardClaim);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimDone, setClaimDone] = useState(initialRewardClaim?.status === "claimed");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const supabase = createClient();
 
@@ -127,6 +128,15 @@ export default function PlayerGameClient({
     const t = setTimeout(fetchClaim, 3000);
     return () => clearTimeout(t);
   }, [gameState, rewardClaim, supabase, participant.id, initialGame.id]);
+
+  // Resolve actual login state for the current player so claim UI is validated by auth
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setIsLoggedIn(!!data.user);
+    };
+    fetchUser();
+  }, [supabase]);
 
   // Record local start time to avoid server clock desyncs
   useEffect(() => {
@@ -303,7 +313,7 @@ export default function PlayerGameClient({
             amount={rewardClaim.amount}
             token={rewardClaim.token}
             position={rewardClaim.position}
-            isGuest={!participant.user_id}
+            isGuest={!isLoggedIn}
             hasInAppWallet={hasInAppWallet}
             onClose={() => setShowClaimModal(false)}
             onSuccess={() => { setClaimDone(true); setShowClaimModal(false); }}

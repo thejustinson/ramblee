@@ -3,6 +3,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { createClient } from '@/utils/supabase/server';
 import { assignEscrowWalletToGame } from '@/utils/escrow';
+import { createFeedEvent } from '@/utils/feed-events';
 import { redirect } from 'next/navigation';
 
 export async function createGame(formData: FormData) {
@@ -136,6 +137,14 @@ Make the correct answers unambiguous. Each question needs exactly 4 options labe
   if (gameError) {
     console.error("Game Insert Error:", gameError);
     return { error: "Database error while creating game." };
+  }
+
+  if (game) {
+    await createFeedEvent(supabase, user.id, 'game_created', {
+      game_id: game.id,
+      title,
+      mode: gameMode,
+    }, game.id);
   }
 
   // Insert Questions

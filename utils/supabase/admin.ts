@@ -1,17 +1,28 @@
-// ⚠️ SERVER-ONLY — NEVER import this in client components.
-// Uses the service role key which bypasses ALL Row Level Security policies.
-// Only use in verified admin server routes.
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-import { createClient } from "@supabase/supabase-js";
+let _admin: SupabaseClient | null = null
 
-export function createAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+/**
+ * Server-only Supabase client that bypasses RLS via service role key.
+ * Do not import this from client components.
+ */
+export function createAdminClient(): SupabaseClient {
+  if (_admin) return _admin
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
   }
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+
+  _admin = createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  })
+
+  return _admin
 }

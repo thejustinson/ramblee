@@ -1,4 +1,6 @@
+import { createAdminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
+import { createFeedEvent, deleteFeedEvent } from '@/utils/feed-events';
 import { transferSplToken } from '@/utils/solana-server';
 import { getTokenBalance } from '@/utils/solana';
 import { reconcileEscrowWalletAfterPayouts } from '@/utils/escrow';
@@ -78,7 +80,35 @@ export async function processGameRewardPayouts(supabase: any, game: any) {
   }
 
   if (inserts.length > 0) {
-    await supabase.from('reward_payouts').insert(inserts);
+    const { data: insertedPayouts } = await supabase
+      .from('reward_payouts')
+      .insert(inserts)
+      .select('id, user_id, game_id, position, amount, token, status');
+
+    if (insertedPayouts) {
+      for (const payout of insertedPayouts) {
+        if (!payout.user_id) continue;
+
+        const referenceId = `payout-${payout.id}`;
+        if (payout.status === 'completed') {
+          await createFeedEvent(supabase, payout.user_id, 'reward_claimed', {
+            game_id: payout.game_id,
+            amount: payout.amount,
+            token: payout.token,
+            position: payout.position,
+          }, referenceId);
+        } else if (payout.status === 'pending_claim') {
+          await createFeedEvent(supabase, payout.user_id, 'reward_pending', {
+            game_id: payout.game_id,
+            title: game.title,
+            position: payout.position,
+            amount: payout.amount,
+            token: payout.token,
+            expires_at: new Date(Date.now() + CLAIM_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+          }, referenceId);
+        }
+      }
+    }
   }
 
   await reconcileEscrowWalletAfterPayouts(supabase, game.id);
@@ -88,7 +118,7 @@ export async function processPendingPayoutsForUser(userId: string, walletAddress
   const supabase = await createClient();
   const { data: pending } = await supabase
     .from('reward_payouts')
-    .select('id, game_id, amount, token')
+    .select('id, user_id, game_id, amount, token')
     .eq('user_id', userId)
     .eq('status', 'pending_claim');
 
@@ -129,6 +159,17 @@ export async function processPendingPayoutsForUser(userId: string, walletAddress
           completed_at: new Date().toISOString(),
         })
         .eq('id', payout.id);
+
+      if (payout.user_id) {
+        await deleteFeedEvent(supabase, payout.user_id, 'reward_pending', `payout-${payout.id}`);
+        await createFeedEvent(supabase, payout.user_id, 'reward_claimed', {
+          game_id: payout.game_id,
+          title: game.title,
+          amount: payout.amount,
+          token: payout.token,
+          tx_signature: txSignature,
+        }, `payout-${payout.id}`);
+      }
     } catch (error: any) {
       await supabase
         .from('reward_payouts')
@@ -144,7 +185,7 @@ export async function processPendingPayoutsForUser(userId: string, walletAddress
 }
 
 export async function expirePendingPayouts() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const now = new Date().toISOString();
 
   const { data: expired } = await supabase
@@ -165,7 +206,7 @@ export async function expirePendingPayouts() {
 }
 
 export async function sweepEscrowForExpiredGame(gameId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data: game } = await supabase
     .from('games')
     .select('id, reward_token, return_wallet_address')

@@ -57,7 +57,7 @@ export default function WalletBlock({ walletAddress }: WalletBlockProps) {
   };
 
   return (
-    <div className="bg-brand-surface border border-brand-border rounded-[2px] p-6 md:p-8 space-y-6">
+    <div id="wallet-section" className="bg-brand-surface border border-brand-border rounded-[2px] p-6 md:p-8 space-y-6">
       <div className="flex items-center gap-3">
         <Wallet className="w-6 h-6 text-brand-lime" />
         <div>

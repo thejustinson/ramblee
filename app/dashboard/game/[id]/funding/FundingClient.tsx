@@ -42,10 +42,14 @@ export default function FundingClient({
       try {
         const res = await fetch('/api/game/fund', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ gameId }),
         });
         const data = await res.json();
+        if (!res.ok) {
+          console.error('Funding confirmation failed response:', res.status, data);
+        }
         if (res.ok && data.funded) {
           setFunded(true);
         }
@@ -145,6 +149,21 @@ export default function FundingClient({
                 </div>
                 <p className="text-xs text-brand-muted mt-2 font-mono">
                   ⚠ Only send {rewardToken} on Solana Devnet to this address.
+                </p>
+              </div>
+
+              {/* QR code */}
+              <div>
+                <p className="text-xs text-brand-muted font-mono uppercase tracking-wider mb-3">Scan to deposit</p>
+                <div className="p-4 bg-brand-black border border-brand-border rounded-[2px] inline-flex items-center justify-center">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(escrowWallet)}`}
+                    alt="QR code for escrow wallet address"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <p className="text-xs text-brand-muted mt-2 font-mono">
+                  Scan this QR code with your Solana wallet app to deposit directly into the escrow.
                 </p>
               </div>
 

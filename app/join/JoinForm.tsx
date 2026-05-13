@@ -70,6 +70,7 @@ export default function JoinForm({ initialCode = "", defaultName = "" }: { initi
               maxLength={6}
               defaultValue={initialCode}
               placeholder="XXXXXX"
+              autoComplete="off"
               className={`w-full bg-brand-black border rounded-[2px] py-4 px-4 text-brand-white focus:outline-none focus:border-brand-lime font-mono text-3xl text-center tracking-[0.5em] uppercase transition-colors ${
                 initialCode ? "border-brand-lime" : "border-brand-border"
               }`}
@@ -88,6 +89,7 @@ export default function JoinForm({ initialCode = "", defaultName = "" }: { initi
               type="text"
               placeholder="Your name"
               defaultValue={defaultName}
+              autoComplete="off"
               className="w-full bg-brand-black border border-brand-border rounded-[2px] py-4 px-4 text-brand-white focus:outline-none focus:border-brand-lime font-medium text-xl text-center transition-colors"
               required
             />

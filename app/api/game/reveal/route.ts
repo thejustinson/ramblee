@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createFeedEvent } from '@/utils/feed-events';
 
 export async function POST(req: NextRequest) {
   try {
@@ -75,7 +76,13 @@ export async function POST(req: NextRequest) {
     const nextIdx = currentIdx + 1;
     const isFinished = nextIdx >= questions.length;
 
-    const updateData: any = {
+    const updateData: {
+      is_revealing: boolean;
+      reveal_answer: string | null;
+      status?: string;
+      current_question_index?: number;
+      question_started_at?: string;
+    } = {
       is_revealing: false,
       reveal_answer: null,
     };
@@ -116,6 +123,37 @@ export async function POST(req: NextRequest) {
           .sort(([, a], [, b]) => b - a)
           .map(([pid], idx) => ({ pid, position: idx + 1 }));
 
+        // Emit "played" feed event for authenticated participants.
+        // (Guests have no user_id so we skip them.)
+        try {
+          const { data: participantsWithUsers } = await supabase
+            .from('participants')
+            .select('id, user_id')
+            .eq('game_id', gameId)
+            .not('user_id', 'is', null);
+
+          if (participantsWithUsers && participantsWithUsers.length > 0) {
+            await Promise.all(
+              participantsWithUsers
+                .filter((p) => p.user_id)
+                .map((p) =>
+                  createFeedEvent(
+                    supabase,
+                    p.user_id as string,
+                    'game_played',
+                    {
+                      game_id: gameId,
+                      title: game.title,
+                    },
+                    `played-${gameId}-${p.id}`
+                  )
+                )
+            );
+          }
+        } catch (e) {
+          console.error('Failed to create game_played feed events:', e);
+        }
+
         // b. Look up game reward config
         const rewardDistribution: { position: number; percentage: number }[] | null =
           game.reward_distribution ?? null;
@@ -127,36 +165,82 @@ export async function POST(req: NextRequest) {
           // Clean up any existing unclaimed rewards for this game (prevents duplicates on re-reveal)
           await supabase.from("reward_claims").delete().eq("game_id", gameId).eq("status", "unclaimed");
 
-          const claimInserts: any[] = [];
+          const claimInserts: Array<{
+            game_id: string;
+            participant_id: string | null;
+            user_id: string | null;
+            position: number;
+            amount: number;
+            token: string;
+            status: string;
+          }> = [];
+          const pendingEvents: Array<{
+            user_id: string;
+            event_type: 'reward_pending';
+            reference_id: string;
+            metadata: Record<string, unknown>;
+          }> = [];
 
           for (const split of rewardDistribution) {
             const winner = ranked.find(r => r.position === split.position);
             if (!winner) continue;
 
-            // Fetch participant's user_id (null for guests)
             const { data: participant } = await supabase
               .from("participants")
               .select("user_id, display_name")
               .eq("id", winner.pid)
               .single();
 
+            let participantWallet = null;
+            if (participant?.user_id) {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('wallet_address')
+                .eq('id', participant.user_id)
+                .single();
+              participantWallet = profile?.wallet_address ?? null;
+            }
+
             const payoutAmount = parseFloat(
               ((split.percentage / 100) * rewardAmount).toFixed(6)
             );
 
+            const userId = participant?.user_id ?? null;
             claimInserts.push({
               game_id: gameId,
               participant_id: winner.pid,
-              user_id: participant?.user_id ?? null,
+              user_id: userId,
               position: split.position,
               amount: payoutAmount,
               token: rewardToken,
               status: "unclaimed",
             });
+
+            if (userId && !participantWallet) {
+              pendingEvents.push({
+                user_id: userId,
+                event_type: 'reward_pending',
+                reference_id: `claim-${gameId}-${winner.pid}-${split.position}`,
+                metadata: {
+                  game_id: gameId,
+                  title: game.title,
+                  position: split.position,
+                  amount: payoutAmount,
+                  token: rewardToken,
+                  expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                },
+              });
+            }
           }
 
           if (claimInserts.length > 0) {
             await supabase.from("reward_claims").insert(claimInserts);
+          }
+
+          if (pendingEvents.length > 0) {
+            for (const event of pendingEvents) {
+              await createFeedEvent(supabase, event.user_id, event.event_type, event.metadata, event.reference_id);
+            }
           }
         }
 
@@ -170,18 +254,24 @@ export async function POST(req: NextRequest) {
             .single();
 
           if (winnerParticipant?.user_id) {
+            await createFeedEvent(
+              supabase,
+              winnerParticipant.user_id,
+              'game_won',
+              {
+                game_id: gameId,
+                title: game.title,
+                position: 1,
+              },
+              `won-${gameId}`
+            );
+
             const { data: followers } = await supabase
               .from("follows")
               .select("follower_id")
               .eq("following_id", winnerParticipant.user_id);
 
             if (followers && followers.length > 0) {
-              const { data: winnerProfile } = await supabase
-                .from("profiles")
-                .select("handle")
-                .eq("id", winnerParticipant.user_id)
-                .single();
-
               const notifications = followers.map(f => ({
                 user_id: f.follower_id,
                 actor_id: winnerParticipant.user_id,
