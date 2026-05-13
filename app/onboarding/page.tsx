@@ -49,7 +49,7 @@ export default function OnboardingPage() {
           handle: handle.toLowerCase(),
           display_name: displayName.trim(),
         },
-        { onConflict: ["id"] }
+        { onConflict: "id" }
       );
 
     if (updateError) {

@@ -44,10 +44,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const googlePictureUrl =
     isOwnProfile && user ? getGooglePictureFromMetadata(user.user_metadata as Record<string, unknown>) : null;
 
-  const [feedEvents, stats] = await Promise.all<[ProfileFeedEvent[], { label: string; value: string }[]]>([
+  const [feedEvents, stats] = await Promise.all([
     getProfileFeedEvents(profile.id, isOwnProfile, showRewardsPublicly),
     getProfileFeedStats(profile.id, isOwnProfile),
-  ]);
+  ] as const);
 
   type PendingRewardClaim = {
     id: string;
@@ -57,7 +57,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
     token: string;
     status: string;
     expires_at: string | null;
-    games: { title: string } | null;
+    games: { title: string }[] | null;
   };
 
   let unclaimedRewards: PendingRewardClaim[] = [];

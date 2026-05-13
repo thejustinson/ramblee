@@ -11,7 +11,7 @@ interface Claim {
   amount: number;
   token: string;
   status: string;
-  games: { title: string };
+  games: { title: string }[] | null;
 }
 
 export default function UnclaimedRewardsBanner({
@@ -44,7 +44,7 @@ export default function UnclaimedRewardsBanner({
           {visible.map((claim) => (
             <div key={claim.id} className="flex items-center justify-between gap-4 bg-brand-black/40 border border-brand-border rounded-[2px] px-4 py-3">
               <div>
-                <p className="text-sm text-brand-white font-semibold">{(claim.games as any)?.title ?? "Game"}</p>
+                <p className="text-sm text-brand-white font-semibold">{claim.games?.[0]?.title ?? "Game"}</p>
                 <p className="text-xs text-brand-muted font-mono mt-0.5">
                   {ordinal(claim.position)} Place — {claim.amount.toFixed(2)} {claim.token}
                 </p>

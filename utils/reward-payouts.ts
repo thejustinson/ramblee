@@ -130,7 +130,7 @@ export async function processPendingPayoutsForUser(userId: string, walletAddress
     try {
       const { data: game } = await supabase
         .from('games')
-        .select('id, escrow_wallet, escrow_wallet_id, reward_token, return_wallet_address')
+        .select('id, title, escrow_wallet, escrow_wallet_id, reward_token, return_wallet_address')
         .eq('id', payout.game_id)
         .single();
 
