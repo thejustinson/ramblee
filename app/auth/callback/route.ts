@@ -8,14 +8,12 @@ export async function GET(request: Request) {
   const next = searchParams.get("next") ?? "/dashboard";
   
   // Get origin from request headers for better Vercel compatibility
-  const origin = request.headers.get('x-forwarded-proto') && request.headers.get('x-forwarded-host')
-    ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('x-forwarded-host')}`
-    : new URL(request.url).origin;
+  const origin = new URL(request.url).origin;
   
-  console.log('Auth callback origin:', origin);
-  console.log('Headers - x-forwarded-proto:', request.headers.get('x-forwarded-proto'));
-  console.log('Headers - x-forwarded-host:', request.headers.get('x-forwarded-host'));
-  console.log('Request URL:', request.url);
+  // console.log('Auth callback origin:', origin);
+  // console.log('Headers - x-forwarded-proto:', request.headers.get('x-forwarded-proto'));
+  // console.log('Headers - x-forwarded-host:', request.headers.get('x-forwarded-host'));
+  // console.log('Request URL:', request.url);
 
   if (code) {
     const supabase = await createClient();

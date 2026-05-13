@@ -14,15 +14,16 @@ function LoginInner() {
   const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
 
   const handleGoogleLogin = async () => {
-    const callback = new URL(`${window.location.origin}/auth/callback`);
-    callback.searchParams.set("next", next);
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: callback.toString(),
+        redirectTo: `${baseUrl}/auth/callback?next=${next}`,
       },
     });
   };
+
+
 
   return (
     <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center p-6 text-brand-white">
